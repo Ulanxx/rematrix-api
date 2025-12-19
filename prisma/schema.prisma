@@ -1,0 +1,105 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum JobStatus {
+  DRAFT
+  WAITING_APPROVAL
+  RUNNING
+  FAILED
+  COMPLETED
+  CANCELED
+}
+
+enum JobStage {
+  PLAN
+  OUTLINE
+  STORYBOARD
+  NARRATION
+  PAGES
+  TTS
+  RENDER
+  MERGE
+  DONE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ArtifactType {
+  JSON
+  MARKDOWN
+  TEXT
+  AUDIO
+  IMAGE
+  VIDEO
+  SUBTITLES
+}
+
+model Job {
+  id           String    @id @default(uuid())
+  userId       String?
+  status       JobStatus @default(DRAFT)
+  currentStage JobStage  @default(PLAN)
+
+  config      Json?
+  stageStatus Json?
+  error       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  artifacts Artifact[]
+  approvals Approval[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([currentStage])
+}
+
+model Artifact {
+  id      String     @id @default(uuid())
+  jobId   String
+  job     Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  stage   JobStage
+  type    ArtifactType
+  version Int        @default(1)
+
+  content Json?
+  blobUrl String?
+
+  createdBy String? // user/system
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, stage, type, version])
+  @@index([jobId, stage])
+}
+
+model Approval {
+  id     String         @id @default(uuid())
+  jobId  String
+  job    Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  stage  JobStage
+
+  status  ApprovalStatus @default(PENDING)
+  comment String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([jobId, stage])
+  @@index([jobId, status])
+}
