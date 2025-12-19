@@ -1,98 +1,143 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# rematrix-server
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Rematrix 的后端服务：基于 NestJS + Temporal 的「从 Markdown 生成视频」编排与任务系统。
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+当前主要流程：`PLAN → OUTLINE → NARRATION → PAGES → (RENDER → MERGE)`，其中 `PLAN / NARRATION / PAGES` 为需要人工确认的审批点（approve/reject）。
 
-## Description
+相关更详细的开发与联调说明见：`DEV_OVERVIEW_AND_FE_INTEGRATION.md`。
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 技术栈
 
-## Project setup
+- **API**：NestJS (TypeScript)
+- **编排**：Temporal（Workflow/Activity + 本地 Temporal UI）
+- **数据库**：Postgres（Prisma + Neon adapter）
+- **渲染/处理**：Playwright、FFmpeg（用于后续/部分阶段）
+- **对象存储（可选）**：Bunny Storage（用于 artifact JSON 上云并生成 `blobUrl`）
+
+## 快速开始（本地跑通）
+
+### 前置依赖
+
+- Node.js（建议使用项目默认版本管理方式）
+- pnpm
+- Docker（用于启动 Temporal Server + UI）
+
+### 1) 安装依赖
 
 ```bash
-$ pnpm install
+pnpm install
 ```
 
-## Compile and run the project
+### 2) 配置环境变量
+
+在根目录创建 `.env` 并填入配置。
+
+必填：
+
+- `DATABASE_URL`：Postgres 连接串
+
+推荐：
+
+- `PORT`：API 端口（默认 `3000`）
+- `TEMPORAL_ADDRESS`：默认 `localhost:7233`
+- `TEMPORAL_NAMESPACE`：默认 `default`
+- `TEMPORAL_TASK_QUEUE`：默认 `rematrix-video`
+
+可选（用于 Bunny 上传与 `blobUrl`）：
+
+- `BUNNY_STORAGE_ZONE`
+- `BUNNY_STORAGE_HOSTNAME`（例如 `uk.storage.bunnycdn.com`）
+- `BUNNY_STORAGE_ACCESS_KEY`
+- `BUNNY_PUBLIC_BASE_URL`（例如 `https://xxx.b-cdn.net`）
+
+### 3) 启动 Temporal Server + UI
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+docker compose -f temporal-docker-compose-min.yml up
 ```
 
-## Run tests
+Temporal UI：
+
+- http://localhost:8233
+
+### 4) 首次安装 Playwright 浏览器（仅首次需要）
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm exec playwright install chromium
 ```
 
-## Deployment
+安装完成后如 worker 已在运行，需要重启 worker。
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 5) 启动 Temporal Worker
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm temporal:worker
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 6) 启动 API Server
 
-## Resources
+```bash
+pnpm start:dev
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+默认 API Base URL：
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+- http://localhost:3000
 
-## Support
+## 前端联调（可选）
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+前端在 `app/`（Vite）。
 
-## Stay in touch
+```bash
+pnpm -C app dev
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+默认前端地址：
 
-## License
+- http://localhost:5173
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+建议在前端配置：
+
+- `VITE_API_BASE_URL=http://localhost:3000`
+
+联调页面：
+
+- `/course/create`：上传 `.md` 创建 Job 并运行
+- `/jobs/:id/process`：制作过程页，轮询 job/artifacts 并在审批点进行 approve/reject
+
+## API 概览（常用）
+
+- `POST /jobs`：创建 Job
+- `POST /jobs/:id/run`：启动 workflow
+- `GET /jobs/:id`：查询 Job 状态
+- `POST /jobs/:id/approve`：通过某阶段（`stage=PLAN|NARRATION|PAGES`）
+- `POST /jobs/:id/reject`：拒绝某阶段
+- `GET /jobs/:jobId/artifacts?waitForStage=...&timeoutMs=...`：查询/等待产物
+
+更完整的请求/响应示例请直接看：`DEV_OVERVIEW_AND_FE_INTEGRATION.md`。
+
+## 常见问题排查
+
+- **Temporal UI 打不开 / 500**
+  - 确认 `docker compose -f temporal-docker-compose-min.yml up` 正常运行
+  - UI：`http://localhost:8233`
+- **Workflow 卡住不推进**
+  - 先看 worker 日志是否在消费 task queue
+  - 确认 `TEMPORAL_TASK_QUEUE=rematrix-video` 与 worker 输出一致
+- **报 Playwright 缺 Chromium**
+  - 执行 `pnpm exec playwright install chromium` 并重启 worker
+- **artifact 的 `blobUrl` 为 null**
+  - 说明 Bunny 上传失败但已降级写 DB（仍可用 `content` 预览）
+  - 检查 Bunny 相关环境变量与 worker 日志
+
+## 目录结构（节选）
+
+- `src/`：NestJS 源码
+- `src/temporal/`：Temporal workflow/worker/activity
+- `prisma/`：Prisma schema / migrations
+- `app/`：前端（Vite + React）
+- `temporal-docker-compose-min.yml`：本地 Temporal Server + UI
+
+## 相关文档
+
+- `DEV_OVERVIEW_AND_FE_INTEGRATION.md`：开发概览 & 前端联调指南
