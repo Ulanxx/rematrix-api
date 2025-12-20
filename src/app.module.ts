@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { ArtifactsModule } from './modules/artifacts/artifacts.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
+import { PromptopsModule } from './modules/promptops/promptops.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TemporalModule } from './modules/temporal/temporal.module';
 
@@ -15,6 +16,7 @@ import { TemporalModule } from './modules/temporal/temporal.module';
     TemporalModule,
     JobsModule,
     ArtifactsModule,
+    PromptopsModule,
     StorageModule,
   ],
   controllers: [AppController],

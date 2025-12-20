@@ -104,15 +104,18 @@ pnpm -C app dev
 
 - `/course/create`：上传 `.md` 创建 Job 并运行
 - `/jobs/:id/process`：制作过程页，轮询 job/artifacts 并在审批点进行 approve/reject
+- `/apps/:jobId`：应用详情页（左侧 Process/物料素材，右侧 ChatBot）
 
 ## API 概览（常用）
 
 - `POST /jobs`：创建 Job
+- `GET /jobs`：列出 Job（用于前端首页应用列表）
 - `POST /jobs/:id/run`：启动 workflow
 - `GET /jobs/:id`：查询 Job 状态
 - `POST /jobs/:id/approve`：通过某阶段（`stage=PLAN|NARRATION|PAGES`）
 - `POST /jobs/:id/reject`：拒绝某阶段
 - `GET /jobs/:jobId/artifacts?waitForStage=...&timeoutMs=...`：查询/等待产物
+- `GET /jobs/:id/chat/sse?message=...`：ChatBot SSE（流式回复，使用 `Authorization: Bearer <token>`）
 
 更完整的请求/响应示例请直接看：`DEV_OVERVIEW_AND_FE_INTEGRATION.md`。
 

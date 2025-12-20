@@ -23,9 +23,17 @@ async function request<T>(
     headers.set('authorization', `Bearer ${token}`)
   }
 
+  if (!headers.has('cache-control')) {
+    headers.set('cache-control', 'no-cache')
+  }
+  if (!headers.has('pragma')) {
+    headers.set('pragma', 'no-cache')
+  }
+
   const res = await fetch(url, {
     ...init,
     headers,
+    cache: 'no-store',
   })
 
   const text = await res.text()
@@ -58,6 +66,17 @@ export const apiClient = {
     return request<T>(path, {
       method: 'POST',
       body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  },
+  patch<T>(path: string, body?: unknown): Promise<T> {
+    return request<T>(path, {
+      method: 'PATCH',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  },
+  delete<T>(path: string): Promise<T> {
+    return request<T>(path, {
+      method: 'DELETE',
     })
   },
 }

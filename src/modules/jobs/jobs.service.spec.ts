@@ -2,7 +2,7 @@ import { JobsService } from './jobs.service';
 
 describe('JobsService', () => {
   it('create/run/approve/reject - happy path (mocked)', async () => {
-    const prisma = {
+    const prisma: any = {
       job: {
         create: jest.fn((args: unknown) => {
           const record = args as { data?: Record<string, unknown> };
@@ -42,8 +42,8 @@ describe('JobsService', () => {
     };
 
     const service = new JobsService(
-      prisma as unknown as Parameters<typeof JobsService>[0],
-      temporal as unknown as Parameters<typeof JobsService>[1],
+      prisma as unknown as ConstructorParameters<typeof JobsService>[0],
+      temporal as unknown as ConstructorParameters<typeof JobsService>[1],
     );
 
     const created = await service.create({ markdown: '# hi' });
@@ -56,13 +56,14 @@ describe('JobsService', () => {
     expect(approveRes.ok).toBe(true);
 
     // mock reject: simulate approval is REJECTED
-    prisma.approval.findUnique = jest.fn(() =>
-      Promise.resolve({
-        stage: 'PLAN',
-        status: 'REJECTED',
-        comment: 'x',
-      }),
-    );
+    prisma.approval.findUnique = jest.fn(
+      () =>
+        Promise.resolve({
+          stage: 'PLAN',
+          status: 'REJECTED',
+          comment: 'x',
+        }) as unknown,
+    ) as unknown;
     const rejectRes = await service.reject('job-1', 'PLAN', 'x');
     expect(rejectRes.ok).toBe(true);
 

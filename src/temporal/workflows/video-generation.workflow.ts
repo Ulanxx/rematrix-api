@@ -13,8 +13,10 @@ const rejectStage =
 const {
   runPlanStage,
   runOutlineStage,
+  runStoryboardStage,
   runNarrationStage,
   runPagesStage,
+  runTtsStage,
   runRenderStage,
   runMergeStage,
   markStageApproved,
@@ -24,8 +26,10 @@ const {
 } = proxyActivities<{
   runPlanStage: (input: VideoGenerationInput) => Promise<unknown>;
   runOutlineStage: (input: VideoGenerationInput) => Promise<unknown>;
+  runStoryboardStage: (input: VideoGenerationInput) => Promise<unknown>;
   runNarrationStage: (input: VideoGenerationInput) => Promise<unknown>;
   runPagesStage: (input: VideoGenerationInput) => Promise<unknown>;
+  runTtsStage: (input: VideoGenerationInput) => Promise<unknown>;
   runRenderStage: (input: VideoGenerationInput) => Promise<unknown>;
   runMergeStage: (input: VideoGenerationInput) => Promise<unknown>;
   markStageApproved: (jobId: string, stage: string) => Promise<void>;
@@ -101,11 +105,15 @@ export async function videoGenerationWorkflow(input: VideoGenerationInput) {
   await advanceAfterPlan(input.jobId);
   await runOutlineStage(input);
 
+  await runStoryboardStage(input);
+
   await runNarrationStage(input);
   await waitForStageApproval('NARRATION');
 
   await runPagesStage(input);
   await waitForStageApproval('PAGES');
+
+  await runTtsStage(input);
 
   await runRenderStage(input);
   await runMergeStage(input);

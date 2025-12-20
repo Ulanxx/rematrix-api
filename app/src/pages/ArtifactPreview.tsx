@@ -4,10 +4,10 @@ import { Link, useParams } from 'react-router-dom'
 import { apiClient } from '@/api/client'
 import type { ApproveStageResponse, Artifact, GetArtifactsResponse, Stage } from '@/api/types'
 import AppShell from '@/components/AppShell'
-import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Separator } from '@/components/ui/Separator'
+import { Badge } from '@/components/ui/8bit/badge'
+import { Button } from '@/components/ui/8bit/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/8bit/card'
+import { Separator } from '@/components/ui/8bit/separator'
 
 function safeJson(value: unknown): string {
   try {

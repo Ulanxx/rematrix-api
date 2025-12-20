@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 
 import { apiClient } from '@/api/client'
 import AppShell from '@/components/AppShell'
-import { Button } from '@/components/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
+import { Button } from '@/components/ui/8bit/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/8bit/card'
+import { Input } from '@/components/ui/8bit/input'
+import { Textarea } from '@/components/ui/8bit/textarea'
 
 type CreateJobResponse = { jobId: string }
 

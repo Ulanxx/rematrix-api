@@ -4,13 +4,17 @@ import HomePage from '@/pages/Home'
 import CourseCreatePage from '@/pages/CourseCreate'
 import ArtifactsPage from '@/pages/Artifacts'
 import ArtifactPreviewPage from '@/pages/ArtifactPreview'
+import AppDetailPage from '@/pages/AppDetail'
 import JobProcessPage from '@/pages/JobProcess'
+import PromptOpsPage from '@/pages/PromptOps'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/apps/:jobId" element={<AppDetailPage />} />
       <Route path="/course/create" element={<CourseCreatePage />} />
+      <Route path="/promptops" element={<PromptOpsPage />} />
       <Route path="/jobs/:jobId/process" element={<JobProcessPage />} />
       <Route path="/jobs/:jobId/artifacts" element={<ArtifactsPage />} />
       <Route

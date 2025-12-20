@@ -80,6 +80,7 @@ model Artifact {
 
   content Json?
   blobUrl String?
+  meta    Json?
 
   createdBy String? // user/system
   createdAt DateTime @default(now())
@@ -102,4 +103,33 @@ model Approval {
 
   @@unique([jobId, stage])
   @@index([jobId, status])
+}
+
+model PromptStageConfig {
+  id    String   @id @default(uuid())
+  stage JobStage
+
+  model       String
+  temperature Float?
+  prompt      String
+
+  tools  Json?
+  schema Json?
+  meta   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  activeFor PromptStageActive[] @relation("PromptStageActiveConfig")
+
+  @@index([stage])
+  @@index([stage, updatedAt])
+}
+
+model PromptStageActive {
+  stage          JobStage @id
+  activeConfigId String
+  activeConfig   PromptStageConfig @relation("PromptStageActiveConfig", fields: [activeConfigId], references: [id], onDelete: Restrict)
+
+  updatedAt DateTime @updatedAt
 }

@@ -40,6 +40,20 @@ export class JobsService {
     return job;
   }
 
+  async list() {
+    return await this.prisma.job.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        currentStage: true,
+        createdAt: true,
+        updatedAt: true,
+        error: true,
+      },
+    });
+  }
+
   async get(jobId: string) {
     const job = await this.prisma.job.findUnique({ where: { id: jobId } });
     if (!job) throw new NotFoundException('job not found');

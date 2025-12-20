@@ -1,3 +1,4 @@
+@import './components/ui/8bit/styles/retro.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

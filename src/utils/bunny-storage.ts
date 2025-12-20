@@ -50,14 +50,27 @@ export async function uploadBufferToBunny(params: {
 
   const storageUrl = getBunnyStorageUploadUrl(params.path, config);
 
-  const res = await fetch(storageUrl, {
-    method: 'PUT',
-    headers: {
-      AccessKey: config.accessKey,
-      'Content-Type': params.contentType,
-    },
-    body: Buffer.from(params.data),
-  });
+  let res: Response;
+  try {
+    res = await fetch(storageUrl, {
+      method: 'PUT',
+      headers: {
+        AccessKey: config.accessKey,
+        'Content-Type': params.contentType,
+      },
+      body: Buffer.from(params.data),
+    });
+  } catch (err: unknown) {
+    const details = {
+      storageUrl,
+      hostname: config.hostname,
+      zone: config.zone,
+      path: params.path,
+    };
+    throw new Error(
+      `Bunny upload fetch failed: ${err instanceof Error ? err.message : String(err)} | ${JSON.stringify(details)}`,
+    );
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -94,12 +107,25 @@ export async function deleteFromBunny(params: {
   const config = params.cfg ?? getConfigFromEnv();
   const storageUrl = getBunnyStorageUploadUrl(params.path, config);
 
-  const res = await fetch(storageUrl, {
-    method: 'DELETE',
-    headers: {
-      AccessKey: config.accessKey,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(storageUrl, {
+      method: 'DELETE',
+      headers: {
+        AccessKey: config.accessKey,
+      },
+    });
+  } catch (err: unknown) {
+    const details = {
+      storageUrl,
+      hostname: config.hostname,
+      zone: config.zone,
+      path: params.path,
+    };
+    throw new Error(
+      `Bunny delete fetch failed: ${err instanceof Error ? err.message : String(err)} | ${JSON.stringify(details)}`,
+    );
+  }
 
   if (!res.ok && res.status !== 404) {
     const text = await res.text().catch(() => '');

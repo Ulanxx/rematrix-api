@@ -12,6 +12,13 @@ export interface Job {
   status: JobStatus
   currentStage?: Stage | null
   config?: Record<string, unknown>
+  createdAt?: string
+  updatedAt?: string
+  error?: string | null
+}
+
+export interface ListJobsResponse {
+  jobs: Job[]
 }
 
 export interface Artifact {
@@ -20,6 +27,7 @@ export interface Artifact {
   version: number
   content: unknown
   blobUrl: string | null
+  meta?: Record<string, unknown> | null
 }
 
 export interface GetArtifactsResponse {
@@ -48,4 +56,21 @@ export interface ApproveStageResponse {
 
 export interface RejectStageResponse extends ApproveStageResponse {
   timeout?: boolean
+}
+
+export interface PromptStageConfig {
+  id: string
+  stage: Stage
+  model: string
+  temperature: number | null
+  prompt: string
+  tools: Record<string, unknown> | null
+  schema: Record<string, unknown> | null
+  meta: Record<string, unknown> | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PromptStagesResponse {
+  stages: Stage[]
 }
