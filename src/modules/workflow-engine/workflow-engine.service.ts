@@ -4,25 +4,72 @@ import { TemporalClientService } from '../temporal/temporal-client.service';
 import { JobStage } from '@prisma/client';
 import { WORKFLOW_COMMANDS, isValidStage, normalizeStage } from './commands';
 
+/**
+ * 工作流指令请求接口
+ */
 export interface WorkflowCommandRequest {
+  /** 任务 ID */
   jobId: string;
+  /** 指令名称 */
   command: string;
+  /** 指令参数 */
   params?: Record<string, unknown>;
 }
 
+/**
+ * 工作流指令执行结果接口
+ */
 export interface WorkflowCommandResult {
+  /** 是否执行成功 */
   success: boolean;
+  /** 执行结果消息 */
   message: string;
+  /** 额外的结果数据 */
   data?: Record<string, unknown>;
 }
 
+/**
+ * 工作流引擎服务
+ *
+ * 负责解析和执行工作流控制指令，支持指令格式和自然语言两种输入方式。
+ * 提供任务状态控制、阶段跳转、参数修改等功能。
+ */
 @Injectable()
 export class WorkflowEngineService {
+  /**
+   * 构造函数
+   *
+   * @param prisma - Prisma 数据库服务
+   * @param temporal - Temporal 工作流客户端服务
+   */
   constructor(
     private readonly prisma: PrismaService,
     private readonly temporal: TemporalClientService,
   ) {}
 
+  /**
+   * 执行工作流指令
+   *
+   * @param request - 工作流指令请求
+   * @returns 指令执行结果
+   * @throws BadRequestException 当指令不存在或参数无效时抛出
+   *
+   * 执行流程：
+   * 1. 验证指令是否存在
+   * 2. 创建指令记录到数据库
+   * 3. 根据指令类型调用相应的处理方法
+   * 4. 更新指令执行状态
+   * 5. 返回执行结果
+   *
+   * @example
+   * ```typescript
+   * const result = await workflowEngine.executeCommand({
+   *   jobId: 'job_123',
+   *   command: 'pause'
+   * });
+   * console.log(result.message); // 'Job paused successfully'
+   * ```
+   */
   async executeCommand(
     request: WorkflowCommandRequest,
   ): Promise<WorkflowCommandResult> {
@@ -90,6 +137,13 @@ export class WorkflowEngineService {
     }
   }
 
+  /**
+   * 处理运行指令
+   *
+   * @param jobId - 任务 ID
+   * @returns 执行结果
+   * @throws BadRequestException 当任务不存在或配置无效时抛出
+   */
   private async handleRun(jobId: string): Promise<WorkflowCommandResult> {
     const job = await (this.prisma as any).job.findUnique({
       where: { id: jobId },
@@ -124,6 +178,13 @@ export class WorkflowEngineService {
     };
   }
 
+  /**
+   * 处理暂停指令
+   *
+   * @param jobId - 任务 ID
+   * @returns 执行结果
+   * @throws BadRequestException 当任务不存在或状态不允许暂停时抛出
+   */
   private async handlePause(jobId: string): Promise<WorkflowCommandResult> {
     const job = await (this.prisma as any).job.findUnique({
       where: { id: jobId },
@@ -157,6 +218,13 @@ export class WorkflowEngineService {
     };
   }
 
+  /**
+   * 处理恢复指令
+   *
+   * @param jobId - 任务 ID
+   * @returns 执行结果
+   * @throws BadRequestException 当任务不存在或状态不允许恢复时抛出
+   */
   private async handleResume(jobId: string): Promise<WorkflowCommandResult> {
     const job = await (this.prisma as any).job.findUnique({
       where: { id: jobId },
@@ -195,6 +263,14 @@ export class WorkflowEngineService {
     };
   }
 
+  /**
+   * 处理跳转到指定阶段指令
+   *
+   * @param jobId - 任务 ID
+   * @param params - 指令参数，必须包含 stage
+   * @returns 执行结果
+   * @throws BadRequestException 当参数无效或阶段不存在时抛出
+   */
   private async handleJumpTo(
     jobId: string,
     params?: Record<string, unknown>,
@@ -228,6 +304,16 @@ export class WorkflowEngineService {
     };
   }
 
+  /**
+   * 处理修改阶段参数指令
+   *
+   * @param jobId - 任务 ID
+   * @param params - 指令参数，必须包含 stage 和 modifications
+   * @returns 执行结果
+   * @throws BadRequestException 当参数无效时抛出
+   *
+   * 注意：当前实现只是简单返回成功，实际修改逻辑需要根据具体需求实现
+   */
   private handleModifyStage(
     jobId: string,
     params?: Record<string, unknown>,
@@ -255,6 +341,18 @@ export class WorkflowEngineService {
     };
   }
 
+  /**
+   * 获取指定任务的指令执行历史
+   *
+   * @param jobId - 任务 ID
+   * @returns 最近 10 条指令记录，按创建时间倒序排列
+   *
+   * @example
+   * ```typescript
+   * const history = await workflowEngine.getCommandHistory('job_123');
+   * console.log(history); // [{ command, status, createdAt, ... }]
+   * ```
+   */
   async getCommandHistory(jobId: string) {
     return await (this.prisma as any).workflowCommand.findMany({
       where: { jobId },
@@ -263,6 +361,25 @@ export class WorkflowEngineService {
     });
   }
 
+  /**
+   * 解析指令格式的文本
+   *
+   * @param message - 用户输入的指令文本，必须以 '/' 开头
+   * @returns 解析结果，包含指令名和参数，如果无法解析则返回 null
+   *
+   * 支持的指令格式：
+   * - `/run` - 运行任务
+   * - `/pause` - 暂停任务
+   * - `/resume` - 恢复任务
+   * - `/jump-to STAGE` - 跳转到指定阶段
+   * - `/modify-stage STAGE key=value` - 修改阶段参数
+   *
+   * @example
+   * ```typescript
+   * const result = workflowEngine.parseCommand('/jump-to NARRATION');
+   * console.log(result); // { command: 'jump-to', params: { stage: 'NARRATION' } }
+   * ```
+   */
   parseCommand(
     message: string,
   ): { command: string; params?: Record<string, unknown> } | null {
@@ -298,6 +415,25 @@ export class WorkflowEngineService {
     return { command, params };
   }
 
+  /**
+   * 解析自然语言格式的文本
+   *
+   * @param message - 用户输入的自然语言文本
+   * @returns 解析结果，包含指令名和参数，如果无法解析则返回 null
+   *
+   * 支持的自然语言模式：
+   * - "运行任务" / "开始执行" -> run
+   * - "暂停任务" / "停止一下" -> pause
+   * - "继续执行" / "恢复任务" -> resume
+   * - "跳到口播阶段" / "直接进入分镜" -> jump-to
+   * - "修改渲染参数" -> modify-stage
+   *
+   * @example
+   * ```typescript
+   * const result = workflowEngine.parseNaturalLanguage('跳到口播阶段');
+   * console.log(result); // { command: 'jump-to', params: { stage: 'NARRATION' } }
+   * ```
+   */
   parseNaturalLanguage(
     message: string,
   ): { command: string; params?: Record<string, unknown> } | null {
@@ -328,6 +464,17 @@ export class WorkflowEngineService {
     return null;
   }
 
+  /**
+   * 获取所有可用的工作流指令
+   *
+   * @returns 指令定义对象，包含所有支持的指令及其自然语言模式
+   *
+   * @example
+   * ```typescript
+   * const commands = workflowEngine.getAvailableCommands();
+   * console.log(Object.keys(commands)); // ['run', 'pause', 'resume', 'jump-to', 'modify-stage']
+   * ```
+   */
   getAvailableCommands() {
     return WORKFLOW_COMMANDS;
   }

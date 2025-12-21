@@ -1,0 +1,38 @@
+{
+  "name": "rematrix-server-docs",
+  "version": "1.0.0",
+  "description": "Rematrix Server API 文档和架构设计",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "serve": "vitepress serve"
+  },
+  "dependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@braintree/sanitize-url": "^7.1.1",
+    "@tsconfig/node20": "^20.1.8",
+    "cytoscape": "^3.33.1",
+    "cytoscape-cose-bilkent": "^4.1.0",
+    "dayjs": "^1.11.19",
+    "debug": "^4.4.3",
+    "mermaid": "^11.12.2",
+    "typescript": "^5.6.3",
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-mermaid": "^2.0.17",
+    "vue": "^3.5.26"
+  },
+  "keywords": [
+    "documentation",
+    "api",
+    "architecture",
+    "nestjs",
+    "temporal",
+    "rematrix"
+  ],
+  "author": "Rematrix Team",
+  "license": "MIT"
+}
