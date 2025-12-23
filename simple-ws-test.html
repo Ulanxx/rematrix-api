@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket 连接测试</h1>
+    <div id="status">状态: 未连接</div>
+    <div id="messages"></div>
+    <button onclick="connect()">连接</button>
+    <button onclick="disconnect()">断开</button>
+    <button onclick="sendJoinJob()">加入 Job 房间</button>
+
+    <script>
+        let ws = null;
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = '状态: ' + message;
+        }
+        
+        function addMessage(message) {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            messages.appendChild(div);
+        }
+        
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                addMessage('已经连接');
+                return;
+            }
+            
+            updateStatus('连接中...');
+            addMessage('尝试连接到 ws://localhost:3000/ws?token=demo-token');
+            
+            try {
+                ws = new WebSocket('ws://localhost:3000/ws?token=demo-token');
+                
+                ws.onopen = function(event) {
+                    updateStatus('已连接');
+                    addMessage('WebSocket 连接成功');
+                };
+                
+                ws.onmessage = function(event) {
+                    addMessage('收到消息: ' + event.data);
+                    try {
+                        const data = JSON.parse(event.data);
+                        addMessage('解析的消息: ' + JSON.stringify(data, null, 2));
+                    } catch (e) {
+                        addMessage('无法解析消息');
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    updateStatus('已断开');
+                    addMessage('连接关闭: ' + event.code + ' - ' + event.reason);
+                };
+                
+                ws.onerror = function(error) {
+                    updateStatus('错误');
+                    addMessage('WebSocket 错误: ' + error);
+                };
+                
+            } catch (error) {
+                updateStatus('错误');
+                addMessage('创建连接失败: ' + error.message);
+            }
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        function sendJoinJob() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = {
+                    type: 'join_job',
+                    jobId: 'test-job-123'
+                };
+                ws.send(JSON.stringify(message));
+                addMessage('发送消息: ' + JSON.stringify(message));
+            } else {
+                addMessage('未连接到 WebSocket');
+            }
+        }
+    </script>
+</body>
+</html>

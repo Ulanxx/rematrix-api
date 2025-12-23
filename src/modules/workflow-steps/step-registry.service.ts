@@ -149,11 +149,7 @@ export class StepRegistryService {
       'PLAN',
       'OUTLINE',
       'STORYBOARD',
-      'NARRATION',
       'PAGES',
-      'TTS',
-      'RENDER',
-      'MERGE',
       'DONE',
     ];
 
@@ -201,11 +197,7 @@ export class StepRegistryService {
       'PLAN',
       'OUTLINE',
       'STORYBOARD',
-      'NARRATION',
       'PAGES',
-      'TTS',
-      'RENDER',
-      'MERGE',
       'DONE',
     ];
     const stageIndexMap = new Map(

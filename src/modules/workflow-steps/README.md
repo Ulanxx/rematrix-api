@@ -65,8 +65,8 @@ export const customStep = createStepDefinition({
   
   // AI 配置（仅 AI_GENERATION 类型需要）
   aiConfig: {
-    model: 'google/gemini-3.0-flash',
-    temperature: 0.7,
+    model: 'z-ai/glm-4.6',
+    
     prompt: '处理 <input> 的提示词',
     schema: z.object({ result: z.string() }),
   },

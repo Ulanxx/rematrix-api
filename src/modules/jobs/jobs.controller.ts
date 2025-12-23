@@ -169,8 +169,8 @@ export class JobsController {
       }
 
       const job = await this.jobs.get(id);
-      const config = (job.config as { markdown?: string } | null) ?? null;
-      const markdown = config?.markdown ?? '';
+      const config = (job.config as { content?: string } | null) ?? null;
+      const markdown = config?.content ?? '';
 
       const apiKey = process.env.OPENROUTER_API_KEY;
       if (!apiKey) {
@@ -184,7 +184,7 @@ export class JobsController {
         baseURL: 'https://openrouter.ai/api/v1',
       });
 
-      const model = openai('google/gemini-3.0-flash');
+      const model = openai('z-ai/glm-4.6');
 
       const result = streamText({
         model,

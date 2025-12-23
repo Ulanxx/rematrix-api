@@ -39,8 +39,8 @@ describe('Workflow Steps Integration', () => {
         const configs = {
           [JobStage.PLAN]: {
             id: 'config-plan',
-            model: 'google/gemini-3.0-flash',
-            temperature: 0.7,
+            model: 'z-ai/glm-4.6',
+
             prompt: 'Test plan prompt with <markdown>',
             tools: null,
             schema: null,
@@ -48,8 +48,8 @@ describe('Workflow Steps Integration', () => {
           },
           [JobStage.OUTLINE]: {
             id: 'config-outline',
-            model: 'google/gemini-3.0-flash',
-            temperature: 0.7,
+            model: 'z-ai/glm-4.6',
+
             prompt: 'Test outline prompt <markdown> <plan_json>',
             tools: null,
             schema: null,
@@ -91,10 +91,9 @@ describe('Workflow Steps Integration', () => {
       await stepInit.onModuleInit();
 
       const stats = stepRegistry.getStats();
-      expect(stats.total).toBe(9); // All 9 stages
-      expect(stats.byType['AI_GENERATION']).toBe(5); // PLAN, OUTLINE, STORYBOARD, NARRATION, PAGES
-      expect(stats.byType['PROCESSING']).toBe(3); // TTS, RENDER, MERGE
-      expect(stats.byType['MERGE']).toBe(1); // DONE
+      expect(stats.total).toBe(5); // All 5 stages
+      expect(stats.byType['AI_GENERATION']).toBe(4); // PLAN, OUTLINE, STORYBOARD, PAGES
+      expect(stats.byType['PROCESSING']).toBe(1); // DONE
     });
 
     it('should validate all step dependencies', async () => {
@@ -115,11 +114,7 @@ describe('Workflow Steps Integration', () => {
         JobStage.PLAN,
         JobStage.OUTLINE,
         JobStage.STORYBOARD,
-        JobStage.NARRATION,
         JobStage.PAGES,
-        JobStage.TTS,
-        JobStage.RENDER,
-        JobStage.MERGE,
         JobStage.DONE,
       ]);
     });
@@ -138,29 +133,11 @@ describe('Workflow Steps Integration', () => {
       expect(stepRegistry.getDependencies(JobStage.STORYBOARD)).toContain(
         JobStage.OUTLINE,
       );
-      expect(stepRegistry.getDependencies(JobStage.NARRATION)).toContain(
-        JobStage.STORYBOARD,
-      );
       expect(stepRegistry.getDependencies(JobStage.PAGES)).toContain(
         JobStage.STORYBOARD,
-      );
-      expect(stepRegistry.getDependencies(JobStage.PAGES)).toContain(
-        JobStage.NARRATION,
-      );
-      expect(stepRegistry.getDependencies(JobStage.TTS)).toContain(
-        JobStage.NARRATION,
-      );
-      expect(stepRegistry.getDependencies(JobStage.RENDER)).toContain(
-        JobStage.PAGES,
-      );
-      expect(stepRegistry.getDependencies(JobStage.MERGE)).toContain(
-        JobStage.RENDER,
-      );
-      expect(stepRegistry.getDependencies(JobStage.MERGE)).toContain(
-        JobStage.TTS,
       );
       expect(stepRegistry.getDependencies(JobStage.DONE)).toContain(
-        JobStage.MERGE,
+        JobStage.PAGES,
       );
     });
 
@@ -172,27 +149,9 @@ describe('Workflow Steps Integration', () => {
         JobStage.STORYBOARD,
       );
       expect(stepRegistry.getDependents(JobStage.STORYBOARD)).toContain(
-        JobStage.NARRATION,
-      );
-      expect(stepRegistry.getDependents(JobStage.STORYBOARD)).toContain(
         JobStage.PAGES,
-      );
-      expect(stepRegistry.getDependents(JobStage.NARRATION)).toContain(
-        JobStage.PAGES,
-      );
-      expect(stepRegistry.getDependents(JobStage.NARRATION)).toContain(
-        JobStage.TTS,
       );
       expect(stepRegistry.getDependents(JobStage.PAGES)).toContain(
-        JobStage.RENDER,
-      );
-      expect(stepRegistry.getDependents(JobStage.TTS)).toContain(
-        JobStage.MERGE,
-      );
-      expect(stepRegistry.getDependents(JobStage.RENDER)).toContain(
-        JobStage.MERGE,
-      );
-      expect(stepRegistry.getDependents(JobStage.MERGE)).toContain(
         JobStage.DONE,
       );
     });
@@ -216,11 +175,9 @@ describe('Workflow Steps Integration', () => {
         }),
       }));
 
-      const result = await stepExecutor.execute(
-        JobStage.PLAN,
-        'test-job-id',
-        'Test markdown content',
-      );
+      const result = await stepExecutor.execute(JobStage.PLAN, 'test-job-id', {
+        content: 'Test markdown content',
+      });
 
       expect(result.success).toBe(true);
       expect(result.output).toBeDefined();
@@ -236,11 +193,9 @@ describe('Workflow Steps Integration', () => {
           .mockRejectedValue(new Error('AI Service Error')),
       }));
 
-      const result = await stepExecutor.execute(
-        JobStage.PLAN,
-        'test-job-id',
-        'Test markdown content',
-      );
+      const result = await stepExecutor.execute(JobStage.PLAN, 'test-job-id', {
+        content: 'Test markdown content',
+      });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('AI Service Error');
@@ -268,11 +223,9 @@ describe('Workflow Steps Integration', () => {
         .fn()
         .mockResolvedValue({ status: 'APPROVED' });
 
-      const result = await stepExecutor.execute(
-        JobStage.PLAN,
-        'test-job-id',
-        'Test markdown content',
-      );
+      const result = await stepExecutor.execute(JobStage.PLAN, 'test-job-id', {
+        content: 'Test markdown content',
+      });
 
       expect(result.success).toBe(true);
       expect(result.output).toEqual({
@@ -312,9 +265,6 @@ describe('Workflow Steps Integration', () => {
         JobStage.PLAN,
       );
       expect(approvalRequiredSteps.map((s) => s.stage)).toContain(
-        JobStage.NARRATION,
-      );
-      expect(approvalRequiredSteps.map((s) => s.stage)).toContain(
         JobStage.PAGES,
       );
 
@@ -326,9 +276,6 @@ describe('Workflow Steps Integration', () => {
       expect(noApprovalSteps.map((s) => s.stage)).toContain(
         JobStage.STORYBOARD,
       );
-      expect(noApprovalSteps.map((s) => s.stage)).toContain(JobStage.TTS);
-      expect(noApprovalSteps.map((s) => s.stage)).toContain(JobStage.RENDER);
-      expect(noApprovalSteps.map((s) => s.stage)).toContain(JobStage.MERGE);
       expect(noApprovalSteps.map((s) => s.stage)).toContain(JobStage.DONE);
     });
 
@@ -338,20 +285,8 @@ describe('Workflow Steps Integration', () => {
       const jsonSteps = steps.filter(
         (step) => step.output.type === ArtifactType.JSON,
       );
-      const audioSteps = steps.filter(
-        (step) => step.output.type === ArtifactType.AUDIO,
-      );
-      const imageSteps = steps.filter(
-        (step) => step.output.type === ArtifactType.IMAGE,
-      );
-      const videoSteps = steps.filter(
-        (step) => step.output.type === ArtifactType.VIDEO,
-      );
-
+      // jsonSteps is used for testing output types
       expect(jsonSteps.length).toBeGreaterThan(0);
-      expect(audioSteps.map((s) => s.stage)).toContain(JobStage.TTS);
-      expect(imageSteps.map((s) => s.stage)).toContain(JobStage.RENDER);
-      expect(videoSteps.map((s) => s.stage)).toContain(JobStage.MERGE);
     });
   });
 
@@ -364,11 +299,9 @@ describe('Workflow Steps Integration', () => {
       // Clear the registry to simulate missing step
       stepRegistry.clear();
 
-      const result = await stepExecutor.execute(
-        JobStage.PLAN,
-        'test-job-id',
-        'Test markdown content',
-      );
+      const result = await stepExecutor.execute(JobStage.PLAN, 'test-job-id', {
+        content: 'Test markdown content',
+      });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No step definition found');
@@ -390,11 +323,9 @@ describe('Workflow Steps Integration', () => {
         .fn()
         .mockRejectedValue(new Error('Database Error'));
 
-      const result = await stepExecutor.execute(
-        JobStage.PLAN,
-        'test-job-id',
-        'Test markdown content',
-      );
+      const result = await stepExecutor.execute(JobStage.PLAN, 'test-job-id', {
+        content: 'Test markdown content',
+      });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Database Error');
@@ -425,7 +356,7 @@ describe('Workflow Steps Integration', () => {
     it('should handle concurrent step lookups', async () => {
       const promises = Array(10)
         .fill(null)
-        .map(() => stepRegistry.get(JobStage.PLAN));
+        .map(() => Promise.resolve(stepRegistry.get(JobStage.PLAN)));
 
       const results = await Promise.all(promises);
 

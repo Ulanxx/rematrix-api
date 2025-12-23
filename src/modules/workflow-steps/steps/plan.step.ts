@@ -19,7 +19,8 @@ export const planOutputSchema = z.object({
  * PLAN 阶段的输入 Schema
  */
 export const planInputSchema = z.object({
-  markdown: z.string().min(1),
+  originContent: z.string().min(1),
+  style: z.string().default(''),
 });
 
 /**
@@ -35,8 +36,8 @@ export const planStep: StepDefinition = createStepDefinition({
 
   // AI 配置
   aiConfig: {
-    model: 'google/gemini-3.0-flash',
-    temperature: 0.7,
+    model: 'z-ai/glm-4.6',
+
     prompt: `# role
 你是一名资深视频策划与教学设计专家。
 

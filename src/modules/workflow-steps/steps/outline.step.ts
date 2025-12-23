@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   StepDefinition,
   createStepDefinition,
+  ExecutionContext,
 } from '../step-definition.interface';
 
 /**
@@ -22,7 +23,7 @@ export const outlineOutputSchema = z.object({
  * OUTLINE 阶段的输入 Schema
  */
 export const outlineInputSchema = z.object({
-  markdown: z.string().min(1),
+  originContent: z.string().min(1),
   plan: z.object({
     estimatedPages: z.number(),
     estimatedDurationSec: z.number(),
@@ -30,6 +31,43 @@ export const outlineInputSchema = z.object({
     questions: z.array(z.string()),
   }),
 });
+
+/**
+ * OUTLINE 阶段的自定义输入准备函数
+ */
+async function prepareOutlineInput(
+  jobId: string,
+  context: ExecutionContext,
+  originContent?: string,
+): Promise<Record<string, unknown>> {
+  if (!context) {
+    throw new Error('Context is required for outline input preparation');
+  }
+
+  const inputData: Record<string, unknown> = {};
+
+  // 添加 originContent（如果提供）
+  if (originContent) {
+    inputData.originContent = originContent;
+  }
+
+  // 获取 PLAN 阶段的输出
+  const planArtifact = await context.prisma.artifact.findFirst({
+    where: {
+      jobId,
+      stage: JobStage.PLAN,
+      type: ArtifactType.JSON,
+    },
+    orderBy: { version: 'desc' },
+    select: { content: true },
+  });
+
+  if (planArtifact?.content) {
+    inputData.plan = planArtifact.content;
+  }
+
+  return inputData;
+}
 
 /**
  * OUTLINE 阶段定义
@@ -44,8 +82,8 @@ export const outlineStep: StepDefinition = createStepDefinition({
 
   // AI 配置
   aiConfig: {
-    model: 'google/gemini-3.0-flash',
-    temperature: 0.7,
+    model: 'z-ai/glm-4.6',
+
     prompt: `# role
 你是一名资深课程结构化专家，擅长把内容拆成清晰的大纲。
 
@@ -120,6 +158,9 @@ export const outlineStep: StepDefinition = createStepDefinition({
     },
     timeoutMs: 120000, // 2 分钟超时
   },
+
+  // 自定义输入准备函数
+  customPrepareInput: prepareOutlineInput,
 
   // 验证函数
   validate() {

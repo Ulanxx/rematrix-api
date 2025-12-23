@@ -3,6 +3,8 @@ import { StepExecutorService } from '../../modules/workflow-steps/step-executor.
 import { StepRegistryService } from '../../modules/workflow-steps/step-registry.service';
 import { PromptopsService } from '../../modules/promptops/promptops.service';
 import { PrismaService } from '../../modules/prisma/prisma.service';
+import { allStepDefinitions } from '../../modules/workflow-steps';
+import { CreateJobDto } from '../../modules/jobs/dto/create-job.dto';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -14,6 +16,10 @@ const prismaService = new PrismaService();
 const prisma = prismaService;
 const promptopsService = new PromptopsService(prismaService);
 const stepRegistryService = new StepRegistryService();
+
+// 注册所有步骤定义
+stepRegistryService.registerBatch(allStepDefinitions);
+
 const stepExecutorService = new StepExecutorService(
   stepRegistryService,
   prismaService,
@@ -22,7 +28,7 @@ const stepExecutorService = new StepExecutorService(
 
 export type VideoGenerationInput = {
   jobId: string;
-  markdown: string;
+  config: CreateJobDto;
 };
 
 export async function ensureJob(jobId: string) {
@@ -43,72 +49,94 @@ export async function ensureJob(jobId: string) {
 async function executeStageWithNewArchitecture(
   stage: JobStage,
   input: VideoGenerationInput,
-): Promise<any> {
+): Promise<unknown> {
   try {
+    console.log(
+      `[Activities] Executing stage ${stage} with new Step architecture`,
+    );
+    console.log(`[Activities] Input for stage ${stage}:`, {
+      jobId: input.jobId,
+      config: input.config,
+    });
+
     const result = await stepExecutorService.execute(
       stage,
       input.jobId,
-      input.markdown,
+      input.config,
     );
 
+    console.log(`[Activities] Result for stage ${stage}:`, {
+      success: result.success,
+      error: result.error,
+      output: result.output,
+      metadata: result.metadata,
+    });
+
     if (!result.success) {
+      // 打印更详细的错误信息，包括可能的 AI 模型返回值
+      console.error(`[Activities] Stage ${stage} failed:`, {
+        error: result.error,
+        output: result.output,
+        metadata: result.metadata,
+      });
       throw new Error(result.error || 'Stage execution failed');
     }
 
     return result.output;
   } catch (error) {
     console.error(`[StepExecutor] Failed to execute stage ${stage}`, error);
+
+    // 如果错误包含 AI 模型的返回信息，打印出来
+    if (
+      error instanceof Error &&
+      error.message.includes('response did not match schema')
+    ) {
+      console.error(
+        `[Activities] Schema mismatch error details:`,
+        error.message,
+      );
+      console.error(`[Activities] Full error stack:`, error.stack);
+    }
+
     throw error;
   }
 }
 
 // 重构后的阶段执行函数，委托给新的 Step 架构
 
-export async function runPlanStage(input: VideoGenerationInput) {
+export async function runPlanStage(
+  input: VideoGenerationInput,
+): Promise<unknown> {
   console.log('[Activities] Running PLAN stage with new Step architecture');
   return await executeStageWithNewArchitecture(JobStage.PLAN, input);
 }
 
-export async function runOutlineStage(input: VideoGenerationInput) {
+export async function runOutlineStage(
+  input: VideoGenerationInput,
+): Promise<unknown> {
   console.log('[Activities] Running OUTLINE stage with new Step architecture');
   return await executeStageWithNewArchitecture(JobStage.OUTLINE, input);
 }
 
-export async function runStoryboardStage(input: VideoGenerationInput) {
+export async function runStoryboardStage(
+  input: VideoGenerationInput,
+): Promise<unknown> {
   console.log(
     '[Activities] Running STORYBOARD stage with new Step architecture',
   );
   return await executeStageWithNewArchitecture(JobStage.STORYBOARD, input);
 }
 
-export async function runNarrationStage(input: VideoGenerationInput) {
-  console.log(
-    '[Activities] Running NARRATION stage with new Step architecture',
-  );
-  return await executeStageWithNewArchitecture(JobStage.NARRATION, input);
-}
-
-export async function runPagesStage(input: VideoGenerationInput) {
+export async function runPagesStage(
+  input: VideoGenerationInput,
+): Promise<unknown> {
   console.log('[Activities] Running PAGES stage with new Step architecture');
   return await executeStageWithNewArchitecture(JobStage.PAGES, input);
 }
 
-export async function runTtsStage(input: VideoGenerationInput) {
-  console.log('[Activities] Running TTS stage with new Step architecture');
-  return await executeStageWithNewArchitecture(JobStage.TTS, input);
-}
-
-export async function runRenderStage(input: VideoGenerationInput) {
-  console.log('[Activities] Running RENDER stage with new Step architecture');
-  return await executeStageWithNewArchitecture(JobStage.RENDER, input);
-}
-
-export async function runMergeStage(input: VideoGenerationInput) {
-  console.log('[Activities] Running MERGE stage with new Step architecture');
-  return await executeStageWithNewArchitecture(JobStage.MERGE, input);
-}
-
-export async function runDoneStage(input: VideoGenerationInput) {
+export async function runDoneStage(
+  input: VideoGenerationInput,
+): Promise<unknown> {
   console.log('[Activities] Running DONE stage with new Step architecture');
   return await executeStageWithNewArchitecture(JobStage.DONE, input);
 }
@@ -130,6 +158,23 @@ export async function approveStage(params: { jobId: string; stage: JobStage }) {
 
   await prisma.job.update({
     where: { id: params.jobId },
+    data: { status: JobStatus.RUNNING },
+  });
+}
+
+export async function markStageApproved(jobId: string, stage: string) {
+  await prisma.approval.upsert({
+    where: { jobId_stage: { jobId, stage: stage as JobStage } },
+    update: { status: ApprovalStatus.APPROVED, comment: null },
+    create: {
+      jobId,
+      stage: stage as JobStage,
+      status: ApprovalStatus.APPROVED,
+    },
+  });
+
+  await prisma.job.update({
+    where: { id: jobId },
     data: { status: JobStatus.RUNNING },
   });
 }

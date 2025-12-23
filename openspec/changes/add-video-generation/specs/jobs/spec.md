@@ -10,7 +10,7 @@
 - **THEN** 系统创建新的 Job 实例，状态为 DRAFT，返回 jobId
 
 #### Scenario: 创建任务时指定选项
-- **WHEN** 用户提交 Markdown 并指定 targetDurationSec、style、language 等选项
+- **WHEN** 用户提交 Markdown 并指定 style、language 等选项
 - **THEN** 系统将选项保存到 Job 配置中
 
 ### Requirement: Job 状态管理

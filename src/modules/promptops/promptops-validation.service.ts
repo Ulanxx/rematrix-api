@@ -136,11 +136,7 @@ export class PromptopsValidationService {
       PLAN: ['<markdown>'],
       OUTLINE: ['<markdown>', '<plan_json>'],
       STORYBOARD: ['<outline_json>'],
-      NARRATION: ['<storyboard_json>', '<markdown>'],
-      PAGES: ['<storyboard_json>', '<narration_json>'],
-      TTS: ['<narration_json>'],
-      RENDER: ['<pages_json>'],
-      MERGE: ['<render_outputs>'],
+      PAGES: ['<storyboard_json>'],
       DONE: ['<job_id>'],
     };
 

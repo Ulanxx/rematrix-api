@@ -25,11 +25,7 @@ enum JobStage {
   PLAN
   OUTLINE
   STORYBOARD
-  NARRATION
   PAGES
-  TTS
-  RENDER
-  MERGE
   DONE
 }
 

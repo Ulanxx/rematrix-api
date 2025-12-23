@@ -4,11 +4,17 @@ import { json } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PromptopsInitService } from './modules/promptops/promptops-init.service';
+import { WsAdapter } from '@nestjs/platform-ws';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // 首先启用 WebSocket 适配器
+  app.useWebSocketAdapter(new WsAdapter(app));
+
+  // 然后配置 CORS
   app.enableCors({
-    origin: true,
+    origin: '*',
     credentials: true,
   });
 
@@ -36,5 +42,11 @@ async function bootstrap() {
   }
 
   await app.listen(process.env.PORT ?? 3000);
+  console.log(
+    `🚀 Application is running on: http://localhost:${process.env.PORT ?? 3000}`,
+  );
+  console.log(
+    `🔌 WebSocket endpoint: ws://localhost:${process.env.PORT ?? 3000}/ws`,
+  );
 }
 void bootstrap();

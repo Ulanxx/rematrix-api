@@ -57,14 +57,16 @@ POST /jobs
 **请求体**:
 ```json
 {
-  "config": {
-    "markdown": "# 标题\n\n这是一个示例文档..."
-  }
+  "content": "# 标题\n\n这是一个示例文档...",
+  "style": "可选风格",
+  "language": "可选语言"
 }
 ```
 
 **参数说明**:
-- `config.markdown` (string, 必填): 要转换的 Markdown 内容
+- `content` (string, 必填): 要转换的 Markdown 内容
+- `style` (string, 可选): 视频风格配置
+- `language` (string, 可选): 语言设置
 
 **响应示例**:
 ```json
@@ -106,7 +108,9 @@ GET /jobs/{id}
   "status": "RUNNING",
   "currentStage": "NARRATION",
   "config": {
-    "markdown": "# 标题\n\n这是一个示例文档..."
+    "content": "# 标题\n\n这是一个示例文档...",
+    "style": "可选风格",
+    "language": "可选语言"
   },
   "createdAt": "2025-12-21T10:00:00Z",
   "updatedAt": "2025-12-21T10:30:00Z",
@@ -316,8 +320,7 @@ const createResponse = await fetch('http://localhost:3000/jobs', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    config: {
-      markdown: `
+    content: `
 # 深度学习入门
 
 ## 基础概念
@@ -325,8 +328,9 @@ const createResponse = await fetch('http://localhost:3000/jobs', {
 
 ## 神经网络
 神经网络的基本结构包括...
-      `.trim()
-    }
+      `.trim(),
+    style: "Google 风格",
+    language: "zh-CN"
   })
 });
 
@@ -367,7 +371,9 @@ interface Job {
   status: 'PENDING' | 'RUNNING' | 'WAITING_APPROVAL' | 'COMPLETED' | 'FAILED';
   currentStage: 'PLAN' | 'OUTLINE' | 'NARRATION' | 'PAGES' | 'RENDER' | 'MERGE' | 'DONE';
   config: {
-    markdown: string;
+    content: string;
+    style?: string;
+    language?: string;
   };
   createdAt: Date;
   updatedAt: Date;

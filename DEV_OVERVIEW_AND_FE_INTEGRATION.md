@@ -132,7 +132,6 @@ Request:
 ```json
 {
   "markdown": "# Title\n\nHello",
-  "targetDurationSec": 60,
   "style": "default",
   "language": "zh"
 }

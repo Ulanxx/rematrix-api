@@ -7,6 +7,9 @@ import ArtifactPreviewPage from '@/pages/ArtifactPreview'
 import AppDetailPage from '@/pages/AppDetail'
 import JobProcessPage from '@/pages/JobProcess'
 import PromptOpsPage from '@/pages/PromptOps'
+import WebSocketTestPage from '@/pages/WebSocketTest'
+import WebSocketTestSimple from '@/pages/WebSocketTestSimple'
+import WebSocketDebug from '@/pages/WebSocketDebug'
 
 export default function App() {
   return (
@@ -15,6 +18,9 @@ export default function App() {
       <Route path="/apps/:jobId" element={<AppDetailPage />} />
       <Route path="/course/create" element={<CourseCreatePage />} />
       <Route path="/promptops" element={<PromptOpsPage />} />
+      <Route path="/websocket-test" element={<WebSocketTestPage />} />
+      <Route path="/websocket-test-simple" element={<WebSocketTestSimple />} />
+      <Route path="/websocket-debug" element={<WebSocketDebug />} />
       <Route path="/jobs/:jobId/process" element={<JobProcessPage />} />
       <Route path="/jobs/:jobId/artifacts" element={<ArtifactsPage />} />
       <Route

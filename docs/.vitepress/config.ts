@@ -26,6 +26,7 @@ export default withMermaid(
               { text: 'Jobs API', link: '/api/jobs' },
               { text: 'Artifacts API', link: '/api/artifacts' },
               { text: 'Workflow Engine API', link: '/api/workflow-engine' },
+              { text: 'WebSocket API', link: '/api/websocket' },
               { text: 'Chat SSE API', link: '/api/chat-sse' },
             ],
           },
@@ -48,7 +49,6 @@ export default withMermaid(
               { text: '环境搭建', link: '/guide/setup' },
               { text: 'API 使用指南', link: '/guide/api-usage' },
               { text: '调试指南', link: '/guide/debugging' },
-              { text: 'Mermaid 图表', link: '/guide/mermaid' },
               { text: '部署指南', link: '/deployment' },
               { text: '常见问题', link: '/guide/faq' },
             ],
@@ -111,7 +111,7 @@ export default withMermaid(
       },
       server: {
         host: true,
-        port: 5173,
+        port: 50000,
       },
     },
 

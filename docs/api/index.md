@@ -1,6 +1,6 @@
 # API 接口概览
 
-Rematrix Server 提供了一套完整的 RESTful API，支持视频生成任务的全生命周期管理。
+Rematrix Server 提供了一套完整的 API，支持视频生成任务的全生命周期管理，包括 RESTful API 和实时 WebSocket 接口。
 
 ## 📡 接口列表
 
@@ -9,6 +9,7 @@ Rematrix Server 提供了一套完整的 RESTful API，支持视频生成任务�
 | [Jobs API](./jobs.md) | 任务管理 | 创建、查询、运行、审批任务 |
 | [Artifacts API](./artifacts.md) | 产物管理 | 查询、等待、下载各阶段产物 |
 | [Workflow Engine API](./workflow-engine.md) | 工作流控制 | 指令解析、执行、状态管理 |
+| [WebSocket API](./websocket.md) | 实时推送 | 工作流状态、阶段完成、错误通知 |
 | [Chat SSE API](./chat-sse.md) | 实时通信 | AI 对话、状态推送、审批交互 |
 
 ## 🔗 基础信息
@@ -18,6 +19,8 @@ Rematrix Server 提供了一套完整的 RESTful API，支持视频生成任务�
 - **认证方式**: 暂无（开发阶段）
 
 ## 🚀 快速体验
+
+### RESTful API 示例
 
 ```bash
 # 1. 创建任务
@@ -31,8 +34,63 @@ curl -X POST http://localhost:3000/jobs/{jobId}/run
 # 3. 查询状态
 curl http://localhost:3000/jobs/{jobId}
 
-# 4. 建立实时连接
+# 4. 建立实时连接（SSE）
 curl "http://localhost:3000/jobs/{jobId}/chat/sse?message=任务进展如何？"
+```
+
+### WebSocket 实时推送示例
+
+```javascript
+// 建立 WebSocket 连接
+const ws = new WebSocket('ws://localhost:3000/ws?token=demo-token');
+
+ws.onopen = () => {
+  // 加入 Job 房间
+  ws.send(JSON.stringify({
+    type: 'join_job',
+    jobId: 'job-123'
+  }));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  switch (data.type) {
+    case 'job_status':
+      console.log('状态更新:', data.data.status);
+      break;
+    case 'stage_completed':
+      console.log('阶段完成:', data.data.stage);
+      break;
+    case 'job_error':
+      console.error('错误:', data.data.error);
+      break;
+  }
+};
+```
+
+### React Hook 集成
+
+```typescript
+import { useWebSocket } from '@/lib/hooks/useWebSocket';
+
+function JobComponent({ jobId }) {
+  const { connectionStatus } = useWebSocket({
+    jobId,
+    onJobStatusUpdate: (data) => {
+      console.log('实时状态更新:', data.status);
+    },
+    onStageCompleted: (data) => {
+      console.log('阶段完成:', data.stage);
+    },
+  });
+
+  return (
+    <div>
+      <div>连接状态: {connectionStatus}</div>
+      {/* 其他 UI 组件 */}
+    </div>
+  );
+}
 ```
 
 ## 📊 状态码说明

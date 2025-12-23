@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   StepDefinition,
   createStepDefinition,
+  ExecutionContext,
 } from '../step-definition.interface';
 
 /**
@@ -34,6 +35,37 @@ export const storyboardInputSchema = z.object({
 });
 
 /**
+ * STORYBOARD 阶段的自定义输入准备函数
+ */
+async function prepareStoryboardInput(
+  jobId: string,
+  context: ExecutionContext,
+): Promise<Record<string, unknown>> {
+  if (!context) {
+    throw new Error('Context is required for storyboard input preparation');
+  }
+
+  const inputData: Record<string, unknown> = {};
+
+  // 获取 OUTLINE 阶段的输出（STORYBOARD 不需要原始 markdown）
+  const outlineArtifact = await context.prisma.artifact.findFirst({
+    where: {
+      jobId,
+      stage: JobStage.OUTLINE,
+      type: ArtifactType.JSON,
+    },
+    orderBy: { version: 'desc' },
+    select: { content: true },
+  });
+
+  if (outlineArtifact?.content) {
+    inputData.outline = outlineArtifact.content;
+  }
+
+  return inputData;
+}
+
+/**
  * STORYBOARD 阶段定义
  * 根据 OUTLINE 生成逐页分镜脚本
  */
@@ -45,8 +77,8 @@ export const storyboardStep: StepDefinition = createStepDefinition({
 
   // AI 配置
   aiConfig: {
-    model: 'google/gemini-3.0-flash',
-    temperature: 0.7,
+    model: 'z-ai/glm-4.6',
+
     prompt: `# role
 你是一名分镜设计师，擅长将大纲转成逐页分镜。
 
@@ -121,6 +153,9 @@ export const storyboardStep: StepDefinition = createStepDefinition({
     },
     timeoutMs: 150000, // 2.5 分钟超时
   },
+
+  // 自定义输入准备函数
+  customPrepareInput: prepareStoryboardInput,
 
   // 验证函数
   validate() {

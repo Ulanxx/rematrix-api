@@ -17,6 +17,12 @@ export interface Job {
   error?: string | null
 }
 
+export interface CreateJobRequest {
+  content: string
+  style?: string
+  language?: string
+}
+
 export interface ListJobsResponse {
   jobs: Job[]
 }

@@ -1,8 +1,42 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { EventEmitter } from 'events';
 import { PrismaService } from '../prisma/prisma.service';
 import { TemporalClientService } from '../temporal/temporal-client.service';
 import { JobStage } from '@prisma/client';
 import { WORKFLOW_COMMANDS, isValidStage, normalizeStage } from './commands';
+
+/**
+ * 工作流状态更新事件接口
+ */
+export interface WorkflowStatusUpdateEvent {
+  jobId: string;
+  status: string;
+  currentStage: string;
+  completedStages: string[];
+  timestamp: string;
+  progress?: number;
+  error?: string;
+}
+
+/**
+ * 工作流阶段完成事件接口
+ */
+export interface WorkflowStageCompletedEvent {
+  jobId: string;
+  stage: string;
+  nextStage?: string;
+  timestamp: string;
+}
+
+/**
+ * 工作流错误事件接口
+ */
+export interface WorkflowErrorEvent {
+  jobId: string;
+  error: string;
+  stage?: string;
+  timestamp: string;
+}
 
 /**
  * 工作流指令请求接口
@@ -36,6 +70,11 @@ export interface WorkflowCommandResult {
  */
 @Injectable()
 export class WorkflowEngineService {
+  /**
+   * 事件发射器，用于通知 WebSocket 客户端工作流状态变更
+   */
+  public readonly eventEmitter = new EventEmitter();
+
   /**
    * 构造函数
    *
@@ -107,7 +146,7 @@ export class WorkflowEngineService {
           result = await this.handleJumpTo(jobId, params);
           break;
         case 'modify-stage':
-          result = await this.handleModifyStage(jobId, params);
+          result = this.handleModifyStage(jobId, params);
           break;
         default:
           throw new BadRequestException(`Command not implemented: ${command}`);
@@ -160,16 +199,31 @@ export class WorkflowEngineService {
       };
     }
 
-    // 获取 Job 的 markdown 配置
-    const config = job.config as { markdown?: string } | null;
-    const markdown = config?.markdown;
+    // 获取 Job 的 content 配置
+    const config = job.config as {
+      content?: string;
+      style?: string;
+      language?: string;
+    } | null;
+    const content = config?.content;
 
-    if (!markdown) {
-      throw new BadRequestException('job.config.markdown is missing');
+    if (!content) {
+      throw new BadRequestException('job.config.content is missing');
     }
 
     // 启动或恢复 Job 执行
-    await this.temporal.startVideoGeneration({ jobId, markdown });
+    await this.temporal.startVideoGeneration({
+      jobId,
+      config: { content, style: config?.style, language: config?.language },
+    });
+
+    // 发射状态更新事件
+    this.emitStatusUpdate(
+      jobId,
+      'RUNNING',
+      job.currentStage || 'PLAN',
+      job.completedStages || [],
+    );
 
     return {
       success: true,
@@ -211,6 +265,14 @@ export class WorkflowEngineService {
       data: { status: 'PAUSED' },
     });
 
+    // 发射状态更新事件
+    this.emitStatusUpdate(
+      jobId,
+      'PAUSED',
+      job.currentStage || 'PLAN',
+      job.completedStages || [],
+    );
+
     return {
       success: true,
       message: 'Job paused successfully',
@@ -245,16 +307,31 @@ export class WorkflowEngineService {
       throw new BadRequestException('Cannot resume a job that is not paused');
     }
 
-    // 获取 Job 的 markdown 配置
-    const config = job.config as { markdown?: string } | null;
-    const markdown = config?.markdown;
+    // 获取 Job 的 content 配置
+    const config = job.config as {
+      content?: string;
+      style?: string;
+      language?: string;
+    } | null;
+    const content = config?.content;
 
-    if (!markdown) {
-      throw new BadRequestException('job.config.markdown is missing');
+    if (!content) {
+      throw new BadRequestException('job.config.content is missing');
     }
 
     // 恢复 Job 执行
-    await this.temporal.startVideoGeneration({ jobId, markdown });
+    await this.temporal.startVideoGeneration({
+      jobId,
+      config: { content, style: config?.style, language: config?.language },
+    });
+
+    // 发射状态更新事件
+    this.emitStatusUpdate(
+      jobId,
+      'RUNNING',
+      job.currentStage || 'PLAN',
+      job.completedStages || [],
+    );
 
     return {
       success: true,
@@ -477,5 +554,55 @@ export class WorkflowEngineService {
    */
   getAvailableCommands() {
     return WORKFLOW_COMMANDS;
+  }
+
+  /**
+   * 发射工作流状态更新事件
+   */
+  private emitStatusUpdate(
+    jobId: string,
+    status: string,
+    currentStage: string,
+    completedStages: string[],
+    error?: string,
+  ) {
+    const event: WorkflowStatusUpdateEvent = {
+      jobId,
+      status,
+      currentStage,
+      completedStages,
+      timestamp: new Date().toISOString(),
+      error,
+    };
+
+    this.eventEmitter.emit('workflow.status.update', event);
+  }
+
+  /**
+   * 发射工作流阶段完成事件
+   */
+  emitStageCompleted(jobId: string, stage: string, nextStage?: string) {
+    const event: WorkflowStageCompletedEvent = {
+      jobId,
+      stage,
+      nextStage,
+      timestamp: new Date().toISOString(),
+    };
+
+    this.eventEmitter.emit('workflow.stage.completed', event);
+  }
+
+  /**
+   * 发射工作流错误事件
+   */
+  emitWorkflowError(jobId: string, error: string, stage?: string) {
+    const event: WorkflowErrorEvent = {
+      jobId,
+      error,
+      stage,
+      timestamp: new Date().toISOString(),
+    };
+
+    this.eventEmitter.emit('workflow.error', event);
   }
 }

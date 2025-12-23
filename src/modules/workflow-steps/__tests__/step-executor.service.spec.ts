@@ -73,8 +73,8 @@ describe('StepExecutorService', () => {
       name: 'Test Plan Step',
       description: 'Test step for unit testing',
       aiConfig: {
-        model: 'google/gemini-3.0-flash',
-        temperature: 0.7,
+        model: 'z-ai/glm-4.6',
+
         prompt: 'Test prompt with <markdown>',
         schema: z.object({ test: z.string() }),
       },
@@ -122,17 +122,22 @@ describe('StepExecutorService', () => {
         }),
       }));
 
-      const result = await service.execute(JobStage.PLAN, jobId, markdown);
+      const result = await service.execute(JobStage.PLAN, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(true);
       expect(result.output).toEqual({ test: 'success' });
       expect(stepRegistry.get).toHaveBeenCalledWith(JobStage.PLAN);
+      expect(stepRegistry.get).toHaveBeenCalledTimes(1);
     });
 
     it('should throw error when step definition not found', async () => {
       stepRegistry.get = jest.fn().mockReturnValue(undefined);
 
-      const result = await service.execute(JobStage.PLAN, jobId, markdown);
+      const result = await service.execute(JobStage.PLAN, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('No step definition found');
@@ -153,7 +158,9 @@ describe('StepExecutorService', () => {
         .fn()
         .mockResolvedValue({ currentStage: 'DONE' });
 
-      const result = await service.execute(JobStage.PLAN, jobId, markdown);
+      const result = await service.execute(JobStage.PLAN, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(true);
       expect(result.output).toEqual({ test: 'existing' });
@@ -183,7 +190,9 @@ describe('StepExecutorService', () => {
         generateObject: mockGenerateObject,
       }));
 
-      const result = await service.execute(JobStage.PLAN, jobId, markdown);
+      const result = await service.execute(JobStage.PLAN, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(true);
       expect(result.output).toEqual({ test: 'ai-generated' });
@@ -195,62 +204,68 @@ describe('StepExecutorService', () => {
         .mockResolvedValue({ test: 'custom-processed' });
 
       const processingStep = createStepDefinition({
-        stage: JobStage.TTS,
+        stage: JobStage.DONE,
         type: 'PROCESSING',
         name: 'Processing Step',
         description: 'Test processing step',
         input: {
-          sources: [JobStage.NARRATION],
-          schema: z.object({ narration: z.any() }),
+          sources: [JobStage.PAGES],
+          schema: z.object({ pages: z.any() }),
         },
         output: {
-          type: ArtifactType.AUDIO,
-          schema: z.object({ test: z.string() }),
+          type: ArtifactType.JSON,
+          schema: z.object({ result: z.string() }),
         },
         execution: {
           requiresApproval: false,
         },
-        customExecute,
+        customExecute: jest.fn().mockResolvedValue({ result: 'processed' }),
       });
 
       stepRegistry.get = jest.fn().mockReturnValue(processingStep);
 
-      const result = await service.execute(JobStage.TTS, jobId, markdown);
+      const result = await service.execute(JobStage.DONE, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(true);
       expect(result.output).toEqual({ test: 'custom-processed' });
       expect(customExecute).toHaveBeenCalled();
     });
 
-    it('should handle merge step with default logic', async () => {
-      const mergeStep = createStepDefinition({
-        stage: JobStage.MERGE,
-        type: 'MERGE',
-        name: 'Merge Step',
-        description: 'Test merge step',
+    it('should handle processing step with default logic', async () => {
+      const processingStep = createStepDefinition({
+        stage: JobStage.DONE,
+        type: 'PROCESSING',
+        name: 'Processing Step',
+        description: 'Test processing step',
         input: {
-          sources: [JobStage.RENDER, JobStage.TTS],
-          schema: z.object({ render: z.any(), tts: z.any() }),
+          sources: [JobStage.PAGES],
+          schema: z.object({ pages: z.any() }),
         },
         output: {
-          type: ArtifactType.VIDEO,
-          schema: z.object({ test: z.string() }),
+          type: ArtifactType.JSON,
+          schema: z.object({ result: z.string() }),
         },
         execution: {
           requiresApproval: false,
         },
       });
 
-      stepRegistry.get = jest.fn().mockReturnValue(mergeStep);
+      stepRegistry.get = jest.fn().mockReturnValue(processingStep);
 
-      const result = await service.execute(JobStage.MERGE, jobId, markdown);
+      const result = await service.execute(JobStage.DONE, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(true);
       expect(result.output).toBeDefined();
     });
 
     it('should create approval when required', async () => {
-      const result = await service.execute(JobStage.PLAN, jobId, markdown);
+      const result = await service.execute(JobStage.PLAN, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(true);
       expect(prismaService.approval.upsert).toHaveBeenCalledWith({
@@ -262,10 +277,13 @@ describe('StepExecutorService', () => {
           status: 'PENDING',
         },
       });
+      expect(prismaService.approval.upsert).toHaveBeenCalledTimes(1);
     });
 
     it('should update job status after execution', async () => {
-      const result = await service.execute(JobStage.PLAN, jobId, markdown);
+      const result = await service.execute(JobStage.PLAN, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(true);
       expect(prismaService.job.update).toHaveBeenCalledWith({
@@ -275,6 +293,7 @@ describe('StepExecutorService', () => {
           currentStage: JobStage.PLAN,
         },
       });
+      expect(prismaService.job.update).toHaveBeenCalledTimes(1);
     });
 
     it('should handle execution errors', async () => {
@@ -283,7 +302,9 @@ describe('StepExecutorService', () => {
         generateObject: jest.fn().mockRejectedValue(new Error('AI Error')),
       }));
 
-      const result = await service.execute(JobStage.PLAN, jobId, markdown);
+      const result = await service.execute(JobStage.PLAN, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('AI Error');
@@ -295,6 +316,7 @@ describe('StepExecutorService', () => {
           error: expect.any(String),
         },
       });
+      expect(prismaService.job.update).toHaveBeenCalledTimes(1);
     });
 
     it('should validate input schema', async () => {
@@ -316,7 +338,9 @@ describe('StepExecutorService', () => {
 
       stepRegistry.get = jest.fn().mockReturnValue(stepWithStrictInput);
 
-      const result = await service.execute(JobStage.PLAN, jobId, 'short'); // Too short
+      const result = await service.execute(JobStage.PLAN, jobId, {
+        content: 'short',
+      }); // Too short
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Input validation failed');
@@ -330,7 +354,9 @@ describe('StepExecutorService', () => {
         }),
       }));
 
-      const result = await service.execute(JobStage.PLAN, jobId, markdown);
+      const result = await service.execute(JobStage.PLAN, jobId, {
+        content: markdown,
+      });
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Output validation failed');
@@ -340,7 +366,9 @@ describe('StepExecutorService', () => {
   describe('buildPrompt', () => {
     it('should build prompt correctly for different stages', async () => {
       // Test PLAN stage
-      const planResult = await service.execute(JobStage.PLAN, jobId, markdown);
+      const planResult = await service.execute(JobStage.PLAN, jobId, {
+        content: markdown,
+      });
       expect(planResult.success).toBe(true);
 
       // Test OUTLINE stage with dependencies
@@ -350,8 +378,8 @@ describe('StepExecutorService', () => {
         name: 'Outline Step',
         description: 'Test outline step',
         aiConfig: {
-          model: 'google/gemini-3.0-flash',
-          temperature: 0.7,
+          model: 'z-ai/glm-4.6',
+
           prompt: 'Outline prompt <markdown> <plan_json>',
           schema: z.object({ outline: z.string() }),
         },
@@ -370,14 +398,12 @@ describe('StepExecutorService', () => {
 
       stepRegistry.get = jest.fn().mockReturnValue(outlineStep);
       prismaService.artifact.findFirst = jest.fn().mockResolvedValue({
-        content: { outline: 'plan content' },
+        content: { outline: { content: 'test content' } },
       });
 
-      const outlineResult = await service.execute(
-        JobStage.OUTLINE,
-        jobId,
-        markdown,
-      );
+      const outlineResult = await service.execute(JobStage.OUTLINE, jobId, {
+        content: 'test markdown',
+      });
       expect(outlineResult.success).toBe(true);
     });
   });

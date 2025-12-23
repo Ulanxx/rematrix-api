@@ -1,12 +1,11 @@
+import { JobStage, ArtifactType } from '@prisma/client';
+import { z } from 'zod';
 import {
   StepDefinition,
   createStepDefinition,
   validateStepDefinition,
   stepDefinitionSchema,
-  ValidationResult,
 } from '../step-definition.interface';
-import { JobStage, ArtifactType } from '@prisma/client';
-import { z } from 'zod';
 
 describe('Step Definition Interface', () => {
   let validStep: StepDefinition;
@@ -18,8 +17,8 @@ describe('Step Definition Interface', () => {
       name: 'Test Step',
       description: 'Test step description',
       aiConfig: {
-        model: 'google/gemini-3.0-flash',
-        temperature: 0.7,
+        model: 'z-ai/glm-4.6',
+
         prompt: 'Test prompt with <markdown>',
         schema: z.object({ test: z.string() }),
       },
@@ -123,14 +122,14 @@ describe('Step Definition Interface', () => {
       expect(result.errors).toEqual([]);
     });
 
-    it('should allow MERGE steps without aiConfig', () => {
-      const mergeStep = {
+    it('should allow PROCESSING steps without aiConfig', () => {
+      const processingStep = {
         ...validStep,
-        type: 'MERGE' as const,
+        type: 'PROCESSING' as const,
         aiConfig: undefined,
       };
 
-      const result = validateStepDefinition(mergeStep);
+      const result = validateStepDefinition(processingStep);
 
       expect(result.isValid).toBe(true);
       expect(result.errors).toEqual([]);
@@ -213,11 +212,11 @@ describe('Step Definition Interface', () => {
     it('should validate optional fields', () => {
       const minimalStep = {
         stage: JobStage.DONE,
-        type: 'MERGE' as const,
+        type: 'PROCESSING' as const,
         name: 'Minimal Step',
         description: 'Minimal description',
         input: {
-          sources: [JobStage.MERGE],
+          sources: [JobStage.PAGES],
           schema: z.object({}),
         },
         output: {
@@ -257,14 +256,14 @@ describe('Step Definition Interface', () => {
       expect(result.isValid).toBe(true);
     });
 
-    it('should validate MERGE type requirements', () => {
-      const mergeStep = {
+    it('should validate PROCESSING type requirements', () => {
+      const processingStep = {
         ...validStep,
-        type: 'MERGE' as const,
+        type: 'PROCESSING' as const,
         aiConfig: undefined,
       };
 
-      const result = validateStepDefinition(mergeStep);
+      const result = validateStepDefinition(processingStep);
       expect(result.isValid).toBe(true);
     });
   });
@@ -300,15 +299,6 @@ describe('Step Definition Interface', () => {
         input: {
           sources: [JobStage.OUTLINE],
           schema: z.object({ outline: z.any() }),
-        },
-      };
-
-      const stepB = {
-        ...validStep,
-        stage: JobStage.OUTLINE,
-        input: {
-          sources: [JobStage.PLAN],
-          schema: z.object({ plan: z.any() }),
         },
       };
 

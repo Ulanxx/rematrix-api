@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { apiClient } from '@/api/client'
+import type { CreateJobRequest } from '@/api/types'
 import AppShell from '@/components/AppShell'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 type CreateJobResponse = { jobId: string }
 
@@ -21,7 +22,6 @@ export default function CourseCreatePage() {
   const [markdown, setMarkdown] = useState('')
   const [filename, setFilename] = useState<string | null>(null)
 
-  const [targetDurationSec, setTargetDurationSec] = useState('')
   const [style, setStyle] = useState('')
   const [language, setLanguage] = useState('')
 
@@ -53,19 +53,10 @@ export default function CourseCreatePage() {
     setResult(null)
 
     try {
-      const payload: {
-        markdown: string
-        targetDurationSec?: number
-        style?: string
-        language?: string
-      } = {
-        markdown,
+      const payload: CreateJobRequest = {
+        content: markdown,
       }
 
-      const parsedDuration = Number(targetDurationSec)
-      if (!Number.isNaN(parsedDuration) && targetDurationSec.trim().length > 0) {
-        payload.targetDurationSec = parsedDuration
-      }
       if (style.trim()) payload.style = style.trim()
       if (language.trim()) payload.language = language.trim()
 
@@ -116,14 +107,9 @@ export default function CourseCreatePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>课程配置（MVP）</CardTitle>
+            <CardTitle>课程配置</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input
-              value={targetDurationSec}
-              onChange={(e) => setTargetDurationSec(e.target.value)}
-              placeholder="targetDurationSec（例如 60）"
-            />
             <Input
               value={style}
               onChange={(e) => setStyle(e.target.value)}

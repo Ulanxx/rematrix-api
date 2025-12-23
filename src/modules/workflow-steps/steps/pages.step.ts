@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   StepDefinition,
   createStepDefinition,
+  ExecutionContext,
 } from '../step-definition.interface';
 
 /**
@@ -18,8 +19,11 @@ export const pagesOutputSchema = z.object({
     z.object({
       title: z.string().min(1),
       bullets: z.array(z.string().min(1)).min(1),
+      design: z.string(),
     }),
   ),
+  pdfUrl: z.string().optional(), // PDF下载链接
+  pdfGenerated: z.boolean().default(false), // PDF生成状态
 });
 
 /**
@@ -35,48 +39,70 @@ export const pagesInputSchema = z.object({
       }),
     ),
   }),
-  narration: z.object({
-    pages: z.array(
-      z.object({
-        page: z.number(),
-        text: z.string(),
-      }),
-    ),
-  }),
 });
 
 /**
+ * PAGES 阶段的自定义输入准备函数
+ */
+async function preparePagesInput(
+  jobId: string,
+  context: ExecutionContext,
+): Promise<Record<string, unknown>> {
+  if (!context) {
+    throw new Error('Context is required for pages input preparation');
+  }
+
+  const inputData: Record<string, unknown> = {};
+
+  // 获取 STORYBOARD 阶段的输出
+  const storyboardArtifact = await context.prisma.artifact.findFirst({
+    where: {
+      jobId,
+      stage: JobStage.STORYBOARD,
+      type: ArtifactType.JSON,
+    },
+    orderBy: { version: 'desc' },
+    select: { content: true },
+  });
+
+  if (storyboardArtifact?.content) {
+    inputData.storyboard = storyboardArtifact.content;
+  }
+
+  return inputData;
+}
+
+/**
  * PAGES 阶段定义
- * 根据 STORYBOARD 和 NARRATION 生成可渲染的页面结构数据
+ * 根据 STORYBOARD 生成可渲染的页面结构数据
  */
 export const pagesStep: StepDefinition = createStepDefinition({
   stage: JobStage.PAGES,
   type: 'AI_GENERATION',
   name: 'Pages Generation',
-  description: '根据分镜与旁白转为可渲染页面数据，用于视频渲染',
+  description: '根据分镜脚本转为可渲染页面数据，用于PDF生成',
 
   // AI 配置
   aiConfig: {
-    model: 'google/gemini-3.0-flash',
+    model: 'z-ai/glm-4.6',
     temperature: 0.5,
     prompt: `# role
-你是一名课件脚本工程师，擅长把分镜与旁白转为可渲染页面数据。
+你是一名课件脚本工程师，擅长把分镜脚本转为可渲染页面数据并生成PDF文档。
 
 ---
 
 # context
-你正在执行视频生成流水线的 PAGES 阶段。
+你正在执行视频生成流水线的 PAGES 阶段，这是最后的内容生成阶段。
 
 ---
 
 # instructions
-根据 <storyboard_json> 与 <narration_json> 生成 PAGES 页面结构数据。
+根据 <storyboard_json> 生成 PAGES 页面结构数据，并标记PDF生成状态。
 
 ---
 
 # variables
 - <storyboard_json> 上游 STORYBOARD 阶段 JSON
-- <narration_json> 上游 NARRATION 阶段 JSON
 
 ---
 
@@ -92,7 +118,9 @@ export const pagesStep: StepDefinition = createStepDefinition({
 - 主题色彩要协调，符合内容风格。
 - 每页幻灯片要有清晰的标题和要点。
 - 要点数量要适中，一般 3-6 个为宜。
-- 页面数量要与分镜和旁白保持一致。
+- 页面数量要与分镜保持一致。
+- 设置 pdfGenerated 为 true 表示PDF已准备生成。
+- pdfUrl 字段暂时留空或设置占位符URL。
 
 ---
 
@@ -102,7 +130,8 @@ export const pagesStep: StepDefinition = createStepDefinition({
 - 是否没有出现 \`{{...}}\`？
 - 主题色彩是否合理？
 - 每页是否有标题和要点？
-- 页面数量是否匹配输入？`,
+- 页面数量是否匹配输入？
+- pdfGenerated 是否设置为 true？`,
     tools: undefined,
     schema: pagesOutputSchema,
     meta: {
@@ -114,16 +143,16 @@ export const pagesStep: StepDefinition = createStepDefinition({
 
   // 输入配置
   input: {
-    sources: [JobStage.STORYBOARD, JobStage.NARRATION], // 依赖 STORYBOARD 和 NARRATION 阶段
+    sources: [JobStage.STORYBOARD], // 仅依赖 STORYBOARD 阶段
     schema: pagesInputSchema,
-    description: 'STORYBOARD 阶段的分镜脚本和 NARRATION 阶段的旁白文稿',
+    description: 'STORYBOARD 阶段的分镜脚本',
   },
 
   // 输出配置
   output: {
     type: ArtifactType.JSON,
     schema: pagesOutputSchema,
-    description: '可渲染的页面结构数据，包含主题和幻灯片内容',
+    description: '可渲染的页面结构数据，包含主题和幻灯片内容，用于PDF生成',
   },
 
   // 执行配置
@@ -136,6 +165,9 @@ export const pagesStep: StepDefinition = createStepDefinition({
     },
     timeoutMs: 180000, // 3 分钟超时
   },
+
+  // 自定义输入准备函数
+  customPrepareInput: preparePagesInput,
 
   // 验证函数
   validate() {

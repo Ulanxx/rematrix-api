@@ -2,12 +2,15 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  forwardRef,
+  Inject,
 } from '@nestjs/common';
 import { ApprovalStatus, JobStage, JobStatus } from '@prisma/client';
 import { ChatMessagesService } from '../chat-messages/chat-messages.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TemporalClientService } from '../temporal/temporal-client.service';
 import { CreateJobDto } from './dto/create-job.dto';
+import { WorkflowEngineService } from '../workflow-engine/workflow-engine.service';
 
 /**
  * 任务服务
@@ -23,11 +26,14 @@ export class JobsService {
    * @param prisma - Prisma 数据库服务
    * @param temporal - Temporal 工作流客户端服务
    * @param chatMessages - 聊天消息服务
+   * @param workflowEngine - 工作流引擎服务
    */
   constructor(
     private readonly prisma: PrismaService,
     private readonly temporal: TemporalClientService,
     public readonly chatMessages: ChatMessagesService,
+    @Inject(forwardRef(() => WorkflowEngineService))
+    private readonly workflowEngine: WorkflowEngineService,
   ) {}
 
   /**
@@ -50,13 +56,13 @@ export class JobsService {
    * @example
    * ```typescript
    * const job = await jobsService.create({
-   *   markdown: '# 深度学习入门\n\n这是一个教程...'
+   *   content: '# 深度学习入门\n\n这是一个教程...'
    * });
    * ```
    */
   async create(dto: CreateJobDto) {
-    if (!dto.markdown) {
-      throw new BadRequestException('markdown is required');
+    if (!dto.content) {
+      throw new BadRequestException('content is required');
     }
 
     const job = await this.prisma.job.create({
@@ -64,8 +70,7 @@ export class JobsService {
         status: JobStatus.DRAFT,
         currentStage: JobStage.PLAN,
         config: {
-          markdown: dto.markdown,
-          targetDurationSec: dto.targetDurationSec,
+          content: dto.content,
           style: dto.style,
           language: dto.language,
         },
@@ -110,7 +115,7 @@ export class JobsService {
    * @example
    * ```typescript
    * const job = await jobsService.get('job_123');
-   * console.log(job.config.markdown); // 访问 Markdown 内容
+   * console.log(job.config.content); // 访问 Markdown 内容
    * ```
    */
   async get(jobId: string) {
@@ -135,20 +140,20 @@ export class JobsService {
    */
   async run(jobId: string) {
     const job = await this.get(jobId);
-    const config = job.config as { markdown?: string } | null;
-    const markdown = config?.markdown;
-    if (!markdown) {
-      throw new BadRequestException('job.config.markdown is missing');
+    const config = job.config as CreateJobDto | null;
+    const content = config?.content;
+    if (!content) {
+      throw new BadRequestException('job.config.content is missing');
     }
 
-    return this.temporal.startVideoGeneration({ jobId, markdown });
+    return this.temporal.startVideoGeneration({ jobId, config });
   }
 
   /**
    * 批准指定阶段的产物，继续执行工作流
    *
    * @param jobId - 任务 ID
-   * @param stage - 要批准的阶段 (PLAN|NARRATION|PAGES)
+   * @param stage - 要批准的阶段 (PLAN|PAGES)
    * @param comment - 可选的审批意见
    * @returns 审批结果，包含任务和审批信息
    * @throws NotFoundException 当任务不存在时抛出
@@ -196,6 +201,9 @@ export class JobsService {
         approval?.status === ApprovalStatus.APPROVED &&
         job?.status === JobStatus.RUNNING
       ) {
+        // 发射阶段完成事件
+        this.workflowEngine.emitStageCompleted(jobId, stage);
+
         return { ok: true, job, approval };
       }
 
@@ -221,7 +229,7 @@ export class JobsService {
    * 拒绝指定阶段的产物，工作流将重新生成该阶段
    *
    * @param jobId - 任务 ID
-   * @param stage - 要拒绝的阶段 (PLAN|NARRATION|PAGES)
+   * @param stage - 要拒绝的阶段 (PLAN|PAGES)
    * @param reason - 拒绝原因
    * @param comment - 可选的详细说明
    * @returns 拒绝结果，包含任务和审批信息
@@ -236,7 +244,7 @@ export class JobsService {
    * ```typescript
    * const result = await jobsService.reject(
    *   'job_123',
-   *   'NARRATION',
+   *   'PLAN',
    *   '口播稿不够详细，需要补充更多示例'
    * );
    * if (result.ok) {
@@ -275,6 +283,13 @@ export class JobsService {
         approval?.status === ApprovalStatus.REJECTED &&
         job?.status === JobStatus.WAITING_APPROVAL
       ) {
+        // 发射错误事件（拒绝审批）
+        this.workflowEngine.emitWorkflowError(
+          jobId,
+          reason || `Stage ${stage} was rejected`,
+          stage,
+        );
+
         return { ok: true, job, approval };
       }
 

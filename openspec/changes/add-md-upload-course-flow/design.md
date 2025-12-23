@@ -29,7 +29,7 @@
 
 ### 2) API 约定（MVP）
 - `POST /jobs`
-  - body: `{ markdown: string, targetDurationSec?: number, style?: string, language?: string }`
+  - body: `{ markdown: string, style?: string, language?: string }`
   - resp: `{ jobId: string }`
 - `POST /jobs/:id/run`
   - resp: `{ workflowId: string, runId: string }`

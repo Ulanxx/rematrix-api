@@ -1,7 +1,5 @@
 export class CreateJobDto {
-  markdown!: string;
-
-  targetDurationSec?: number;
+  content!: string;
 
   style?: string;
 

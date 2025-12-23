@@ -30,5 +30,5 @@
 - 实时推送（SSE/WebSocket）；本次以轮询为主
 
 ## Open Questions
-- 课程配置字段的最小集合：建议先支持 `targetDurationSec`、`style`、`language`，其余后续迭代。
+- 课程配置字段的最小集合：建议先支持`style`、`language`，其余后续迭代。
 - NARRATION/PAGES 的“修改入口”在 MVP 阶段采用“编辑 JSON/Markdown 文本域”还是“结构化表单编辑器”。

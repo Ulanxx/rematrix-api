@@ -7,7 +7,6 @@ import {
 } from '@prisma/client';
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
-import { z } from 'zod';
 import {
   StepDefinition,
   StepExecutionResult,
@@ -18,10 +17,8 @@ import { StepRegistryService } from './step-registry.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PromptopsService } from '../promptops/promptops.service';
 import { sha256 } from '../../utils/promptops-utils';
-import {
-  uploadBufferToBunny,
-  uploadJsonToBunny,
-} from '../../utils/bunny-storage';
+import { uploadJsonToBunny } from '../../utils/bunny-storage';
+import { CreateJobDto } from '../jobs/dto/create-job.dto';
 
 /**
  * Step 执行服务
@@ -43,7 +40,7 @@ export class StepExecutorService {
   async execute(
     stage: JobStage,
     jobId: string,
-    markdown?: string,
+    config?: CreateJobDto,
   ): Promise<StepExecutionResult> {
     this.logger.log(`Executing step ${stage} for job ${jobId}`);
 
@@ -70,6 +67,12 @@ export class StepExecutorService {
         promptopsService: this.promptopsService,
       };
 
+      // 收集前面步骤的 AI response context
+      context.previousStepsContext = await this.collectPreviousStepsContext(
+        stepDef,
+        jobId,
+      );
+
       // 确保任务存在
       await this.ensureJob(jobId);
 
@@ -81,10 +84,14 @@ export class StepExecutorService {
       }
 
       // 准备输入数据
-      const inputData = await this.prepareInput(stepDef, jobId, markdown);
+      const inputData: Record<string, unknown> = await this.prepareInput(
+        stepDef,
+        jobId,
+        config,
+      );
 
       // 执行步骤
-      let result: any;
+      let result: unknown;
       const metadata: Record<string, unknown> = {};
 
       if (stepDef.type === 'AI_GENERATION') {
@@ -99,16 +106,8 @@ export class StepExecutorService {
         );
         result = processingResult.output;
         Object.assign(metadata, processingResult.metadata);
-      } else if (stepDef.type === 'MERGE') {
-        const mergeResult = await this.executeMergeStep(
-          stepDef,
-          inputData,
-          context,
-        );
-        result = mergeResult.output;
-        Object.assign(metadata, mergeResult.metadata);
       } else {
-        throw new Error(`Unsupported step type: ${stepDef.type}`);
+        throw new Error(`Unsupported step type: ${String(stepDef.type)}`);
       }
 
       // 验证输出
@@ -163,9 +162,9 @@ export class StepExecutorService {
    */
   private async executeAIStep(
     stepDef: StepDefinition,
-    inputData: any,
+    inputData: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<{ output: any; metadata: Record<string, unknown> }> {
+  ): Promise<{ output: unknown; metadata: Record<string, unknown> }> {
     if (!stepDef.aiConfig) {
       throw new Error('AI_GENERATION step must have aiConfig');
     }
@@ -176,11 +175,24 @@ export class StepExecutorService {
     );
     const config = activeConfig || stepDef.aiConfig;
 
-    // 构建完整的 prompt
-    const fullPrompt = this.buildPrompt(
+    // 构建完整的 prompt，包含前面步骤的 context
+    const fullPrompt = this.buildPromptWithContext(
       config.prompt,
       inputData,
+      context.previousStepsContext || {},
       stepDef.stage,
+    );
+
+    console.log(`🔍 Debug Info for ${stepDef.stage}:`);
+    console.log('🔍 Input Data:', JSON.stringify(inputData, null, 2));
+    console.log(
+      '🔍 Previous Steps Context:',
+      JSON.stringify(context.previousStepsContext, null, 2),
+    );
+    console.log('🔍 Full Prompt:', fullPrompt);
+    console.log(
+      '🔍 Expected Schema:',
+      JSON.stringify(stepDef.output.schema, null, 2),
     );
 
     // 创建 OpenAI 客户端
@@ -192,12 +204,47 @@ export class StepExecutorService {
     const model = openai(config.model);
 
     // 执行 AI 生成
-    const { object } = await generateObject({
+    const rawResponse = await generateObject({
       model,
       temperature: config.temperature ?? undefined,
       schema: stepDef.output.schema,
       prompt: fullPrompt,
     });
+
+    console.log('🔍 AI Raw Response:', JSON.stringify(rawResponse, null, 2));
+    console.log(
+      '🔍 Generated Object:',
+      JSON.stringify(rawResponse.object, null, 2),
+    );
+
+    // 验证生成的对象是否符合 schema
+    try {
+      const validationResult = stepDef.output.schema.safeParse(
+        rawResponse.object,
+      );
+      if (!validationResult.success) {
+        console.error('❌ Schema validation failed:', validationResult.error);
+        console.error(
+          '❌ Error details:',
+          JSON.stringify(validationResult.error.issues, null, 2),
+        );
+        console.error(
+          '❌ AI Raw Response that failed validation:',
+          JSON.stringify(rawResponse, null, 2),
+        );
+
+        // 创建包含原始返回值的错误信息
+        const errorMessage = `Schema validation failed: ${validationResult.error.message}. Original AI response: ${JSON.stringify(rawResponse.object)}`;
+        throw new Error(errorMessage);
+      } else {
+        console.log('✅ Schema validation passed');
+      }
+    } catch (error) {
+      console.error('❌ Schema validation error:', error);
+      throw error;
+    }
+
+    const { object } = rawResponse as { object: unknown };
 
     return {
       output: object,
@@ -215,11 +262,14 @@ export class StepExecutorService {
    */
   private async executeProcessingStep(
     stepDef: StepDefinition,
-    inputData: any,
+    inputData: Record<string, unknown>,
     context: ExecutionContext,
-  ): Promise<{ output: any; metadata: Record<string, unknown> }> {
+  ): Promise<{ output: unknown; metadata: Record<string, unknown> }> {
     if (stepDef.customExecute) {
-      const result = await stepDef.customExecute(inputData, context);
+      const result = (await stepDef.customExecute(
+        inputData,
+        context,
+      )) as unknown;
       return {
         output: result,
         metadata: {
@@ -234,89 +284,50 @@ export class StepExecutorService {
   }
 
   /**
-   * 执行合并步骤
+   * 构建包含前面步骤 context 的 prompt
    */
-  private async executeMergeStep(
-    stepDef: StepDefinition,
-    inputData: any,
-    context: ExecutionContext,
-  ): Promise<{ output: any; metadata: Record<string, unknown> }> {
-    if (stepDef.customExecute) {
-      const result = await stepDef.customExecute(inputData, context);
-      return {
-        output: result,
-        metadata: {
-          generationType: 'custom_merge',
-        },
-      };
-    }
-
-    // 默认合并逻辑：将所有输入合并为一个对象
-    const merged: Record<string, any> = {};
-    for (const [key, value] of Object.entries(inputData)) {
-      merged[key] = value;
-    }
-
-    return {
-      output: merged,
-      metadata: {
-        generationType: 'default_merge',
-        inputCount: Object.keys(inputData).length,
-      },
-    };
-  }
-
-  /**
-   * 构建 prompt
-   */
-  private buildPrompt(
+  private buildPromptWithContext(
     basePrompt: string,
-    inputData: any,
+    inputData: Record<string, unknown>,
+    previousStepsContext: Record<string, unknown>,
     stage: JobStage,
   ): string {
     let prompt = basePrompt;
 
-    // 根据阶段添加特定的输入数据
+    // 然后根据阶段添加特定的输入数据
     switch (stage) {
       case 'PLAN':
-        if (inputData.markdown) {
-          prompt += `\n\n# Markdown\n${inputData.markdown}`;
+        if (typeof inputData.originContent === 'string') {
+          prompt += `\n\n# Markdown\n${inputData.originContent}`;
         }
         break;
       case 'OUTLINE':
-        if (inputData.markdown) {
-          prompt += `\n\n# Markdown\n${inputData.markdown}`;
+        if (typeof inputData.originContent === 'string') {
+          prompt += `\n\n# Markdown\n${inputData.originContent}`;
         }
-        if (inputData.plan) {
+        if (inputData.plan && typeof inputData.plan === 'object') {
           prompt += `\n\n# PLAN(JSON)\n${JSON.stringify(inputData.plan, null, 2)}`;
         }
         break;
       case 'STORYBOARD':
-        if (inputData.outline) {
+        if (inputData.outline && typeof inputData.outline === 'object') {
           prompt += `\n\n# OUTLINE(JSON)\n${JSON.stringify(inputData.outline, null, 2)}`;
         }
         break;
-      case 'NARRATION':
-        if (inputData.storyboard) {
-          prompt += `\n\n# STORYBOARD(JSON)\n${JSON.stringify(inputData.storyboard, null, 2)}`;
-        }
-        if (inputData.markdown) {
-          prompt += `\n\n# Markdown\n${inputData.markdown}`;
-        }
-        break;
       case 'PAGES':
-        if (inputData.storyboard) {
+        if (inputData.storyboard && typeof inputData.storyboard === 'object') {
           prompt += `\n\n# STORYBOARD(JSON)\n${JSON.stringify(inputData.storyboard, null, 2)}`;
-        }
-        if (inputData.narration) {
-          prompt += `\n\n# NARRATION(JSON)\n${JSON.stringify(inputData.narration, null, 2)}`;
         }
         break;
       default:
         // 对于其他阶段，添加所有可用的输入数据
         for (const [key, value] of Object.entries(inputData)) {
           if (value !== undefined && value !== null) {
-            prompt += `\n\n# ${key.toUpperCase()}\n${typeof value === 'object' ? JSON.stringify(value, null, 2) : value}`;
+            if (typeof value === 'object') {
+              prompt += `\n\n# ${key.toUpperCase()}\n${JSON.stringify(value, null, 2)}`;
+            } else if (typeof value === 'string') {
+              prompt += `\n\n# ${key.toUpperCase()}\n${value}`;
+            }
           }
         }
     }
@@ -330,13 +341,38 @@ export class StepExecutorService {
   private async prepareInput(
     stepDef: StepDefinition,
     jobId: string,
-    markdown?: string,
-  ): Promise<any> {
-    const inputData: any = {};
+    config?: CreateJobDto,
+  ): Promise<Record<string, unknown>> {
+    // 如果有自定义输入准备逻辑，使用自定义逻辑
+    if (stepDef.customPrepareInput) {
+      const customInput = (await stepDef.customPrepareInput(
+        jobId,
+        {
+          jobId,
+          apiKey: process.env.OPENROUTER_API_KEY || '',
+          prisma: this.prisma,
+          promptopsService: this.promptopsService,
+        },
+        config?.content,
+      )) as Record<string, unknown>;
+
+      // 验证自定义输入
+      const inputValidation = stepDef.input.schema.safeParse(customInput);
+      if (!inputValidation.success) {
+        throw new Error(
+          `Input validation failed: ${inputValidation.error.message}`,
+        );
+      }
+
+      return customInput;
+    }
+
+    // 默认输入准备逻辑
+    const inputData: Record<string, unknown> = {};
 
     // 添加 markdown（如果提供）
-    if (markdown) {
-      inputData.markdown = markdown;
+    if (config?.content) {
+      inputData.originContent = config.content;
     }
 
     // 从依赖阶段获取数据
@@ -356,6 +392,33 @@ export class StepExecutorService {
     }
 
     return inputData;
+  }
+
+  /**
+   * 收集前面步骤的 AI response context
+   */
+  private async collectPreviousStepsContext(
+    stepDef: StepDefinition,
+    jobId: string,
+  ): Promise<Record<string, unknown>> {
+    const context: Record<string, unknown> = {};
+
+    // 定义步骤执行顺序
+    const stageOrder = ['PLAN', 'OUTLINE', 'STORYBOARD', 'PAGES', 'DONE'];
+
+    const currentStageIndex = stageOrder.indexOf(stepDef.stage);
+
+    // 收集所有前面步骤的 AI response
+    for (let i = 0; i < currentStageIndex; i++) {
+      const previousStage = stageOrder[i] as JobStage;
+      const artifact = await this.getLatestJsonArtifact(jobId, previousStage);
+
+      if (artifact?.content) {
+        context[previousStage.toLowerCase()] = artifact.content;
+      }
+    }
+
+    return context;
   }
 
   /**
@@ -403,17 +466,7 @@ export class StepExecutorService {
     });
 
     if (job) {
-      const stageOrder = [
-        'PLAN',
-        'OUTLINE',
-        'STORYBOARD',
-        'NARRATION',
-        'PAGES',
-        'TTS',
-        'RENDER',
-        'MERGE',
-        'DONE',
-      ];
+      const stageOrder = ['PLAN', 'OUTLINE', 'STORYBOARD', 'PAGES', 'DONE'];
       const currentIndex = stageOrder.indexOf(job.currentStage);
       const stageIndex = stageOrder.indexOf(stage);
 
@@ -431,7 +484,7 @@ export class StepExecutorService {
   private async saveResult(
     stepDef: StepDefinition,
     jobId: string,
-    result: any,
+    result: unknown,
     metadata: Record<string, unknown>,
   ): Promise<void> {
     // 计算版本号
@@ -477,9 +530,9 @@ export class StepExecutorService {
         stage: stepDef.stage,
         type: stepDef.output.type,
         version: nextVersion,
-        content: result,
+        content: result as any,
         blobUrl,
-        meta: finalMetadata,
+        meta: finalMetadata as any,
         createdBy: 'system',
       },
     });
@@ -527,7 +580,7 @@ export class StepExecutorService {
     currentStage: JobStage,
     error?: string,
   ): Promise<void> {
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       status,
       currentStage,
     };

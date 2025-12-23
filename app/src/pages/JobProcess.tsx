@@ -10,6 +10,7 @@ import type {
   RejectStageResponse,
   Stage,
 } from '@/api/types'
+import { useWebSocket } from '@/lib/hooks/useWebSocket'
 import AppShell from '@/components/AppShell'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -42,6 +43,44 @@ export default function JobProcessPage() {
   const [reason, setReason] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [actionResult, setActionResult] = useState<string | null>(null)
+
+  // WebSocket 连接管理
+  const {
+    connectionStatus,
+    reconnectAttempts,
+  } = useWebSocket({
+    jobId: jobIdSafe,
+    onJobStatusUpdate: (data) => {
+      // 更新 job 状态
+      setJob(prev => prev ? { 
+        ...prev, 
+        status: data.status as any, 
+        currentStage: data.currentStage as any, 
+        completedStages: data.completedStages 
+      } : null)
+      
+      // 重新加载 artifacts 以获取最新数据
+      void loadOnce()
+    },
+    onStageCompleted: (data) => {
+      console.log(`Stage ${data.stage} completed`, data)
+      // 阶段完成时重新加载 artifacts
+      void loadOnce()
+    },
+    onJobError: (data) => {
+      setError(`Job error: ${data.error}`)
+    },
+    onConnectionChange: (connected) => {
+      if (!connected) {
+        setError('WebSocket connection lost, may affect real-time updates')
+      } else {
+        setError(null)
+      }
+    },
+    onError: (error) => {
+      // console.error('WebSocket error:', error)
+    },
+  })
 
   const currentStage = (job?.currentStage || '') as Stage
   const canConfirm =
@@ -144,22 +183,13 @@ export default function JobProcessPage() {
     }
   }
 
+  // 初始加载 job 和 artifacts
   useEffect(() => {
-    void loadOnce()
+    if (jobIdSafe) {
+      void loadOnce()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobIdSafe])
-
-  useEffect(() => {
-    const parsed = Number(pollMs)
-    if (!jobIdSafe || Number.isNaN(parsed) || parsed <= 0) return
-
-    const id = window.setInterval(() => {
-      void loadOnce()
-    }, parsed)
-
-    return () => window.clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobIdSafe, pollMs])
 
   return (
     <AppShell
@@ -167,6 +197,27 @@ export default function JobProcessPage() {
       subtitle={`jobId: ${jobIdSafe}`}
       actions={
         <>
+          {/* WebSocket 连接状态指示器 */}
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${
+              connectionStatus === 'connected' ? 'bg-green-500' :
+              connectionStatus === 'connecting' ? 'bg-yellow-500' :
+              connectionStatus === 'error' ? 'bg-red-500' :
+              'bg-gray-400'
+            }`} />
+            <span className="text-xs text-gray-600">
+              {connectionStatus === 'connected' ? '实时连接' :
+               connectionStatus === 'connecting' ? '连接中...' :
+               connectionStatus === 'error' ? '连接错误' :
+               '未连接'}
+            </span>
+            {reconnectAttempts > 0 && (
+              <span className="text-xs text-orange-600">
+                (重连 {reconnectAttempts})
+              </span>
+            )}
+          </div>
+          
           <Button asChild variant="outline" size="sm">
             <Link to={`/jobs/${encodeURIComponent(jobIdSafe)}/artifacts`}>产物列表</Link>
           </Button>

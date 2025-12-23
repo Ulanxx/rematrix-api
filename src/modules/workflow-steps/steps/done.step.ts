@@ -39,13 +39,13 @@ export const doneInputSchema = z.object({
  */
 export const doneStep: StepDefinition = createStepDefinition({
   stage: JobStage.DONE,
-  type: 'MERGE',
+  type: 'PROCESSING',
   name: 'Workflow Completion',
   description: '标记工作流完成，生成最终总结和状态报告',
 
   // 输入配置
   input: {
-    sources: [JobStage.MERGE], // 依赖 MERGE 阶段完成
+    sources: [JobStage.PAGES], // 依赖 PAGES 阶段完成
     schema: doneInputSchema,
     description: '任务 ID 和所有前置阶段的输出',
   },
@@ -99,7 +99,7 @@ export const doneStep: StepDefinition = createStepDefinition({
 
     // 统计完成的阶段
     const completedStages = new Set(finalArtifacts.map((a) => a.stage)).size;
-    const totalStages = 9; // PLAN, OUTLINE, STORYBOARD, NARRATION, PAGES, TTS, RENDER, MERGE, DONE
+    const totalStages = 5; // PLAN, OUTLINE, STORYBOARD, PAGES, DONE
 
     return {
       status: 'completed',
@@ -123,8 +123,8 @@ export const doneStep: StepDefinition = createStepDefinition({
       completedAt: new Date().toISOString(),
       jobId: 'test-job-id',
       summary: {
-        totalStages: 9,
-        completedStages: 9,
+        totalStages: 5,
+        completedStages: 5,
         artifacts: [
           {
             stage: 'PLAN',
@@ -132,8 +132,8 @@ export const doneStep: StepDefinition = createStepDefinition({
             version: 1,
           },
           {
-            stage: 'MERGE',
-            type: 'VIDEO',
+            stage: 'PAGES',
+            type: 'JSON',
             version: 1,
           },
         ],

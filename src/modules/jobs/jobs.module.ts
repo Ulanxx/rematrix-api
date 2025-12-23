@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ChatMessagesModule } from '../chat-messages/chat-messages.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TemporalModule } from '../temporal/temporal.module';
@@ -11,7 +11,7 @@ import { JobsService } from './jobs.service';
     PrismaModule,
     TemporalModule,
     ChatMessagesModule,
-    WorkflowEngineModule,
+    forwardRef(() => WorkflowEngineModule),
   ],
   controllers: [JobsController],
   providers: [JobsService],

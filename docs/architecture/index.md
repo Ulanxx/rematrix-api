@@ -199,12 +199,6 @@ export class CreateJobDto {
   @IsNotEmpty()
   @MaxLength(100000)
   markdown: string;
-  
-  @IsOptional()
-  @IsNumber()
-  @Min(60)
-  @Max(3600)
-  targetDurationSec?: number;
 }
 ```
 

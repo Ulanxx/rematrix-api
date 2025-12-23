@@ -233,17 +233,13 @@ export class PromptopsService {
 
   private defaultModel(stage: JobStage) {
     const defaults: Record<JobStage, string> = {
-      PLAN: 'google/gemini-3.0-flash',
-      OUTLINE: 'google/gemini-3.0-flash',
-      STORYBOARD: 'google/gemini-3.0-flash',
-      NARRATION: 'google/gemini-3.0-flash',
-      PAGES: 'google/gemini-3.0-flash',
-      TTS: 'google/gemini-3.0-flash',
-      RENDER: 'google/gemini-3.0-flash',
-      MERGE: 'google/gemini-3.0-flash',
-      DONE: 'google/gemini-3.0-flash',
+      PLAN: 'z-ai/glm-4.6',
+      OUTLINE: 'z-ai/glm-4.6',
+      STORYBOARD: 'z-ai/glm-4.6',
+      PAGES: 'z-ai/glm-4.6',
+      DONE: 'z-ai/glm-4.6',
     };
-    return defaults[stage] ?? 'google/gemini-3.0-flash';
+    return defaults[stage] ?? 'z-ai/glm-4.6';
   }
 
   private defaultPrompt(stage: JobStage) {
@@ -285,57 +281,19 @@ export class PromptopsService {
         output:
           '请严格输出 JSON，结构必须符合本 stage 的 schema（由系统注入）。',
       }),
-      NARRATION: base({
-        stage: JobStage.NARRATION,
-        role: '你是一名旁白撰稿与配音导演，擅长写口播稿。',
-        goal: '根据 <storyboard_json> 与 <markdown> 生成逐页 NARRATION 文本。',
-        inputs: [
-          '<storyboard_json> 上游 STORYBOARD 阶段 JSON',
-          '<markdown> 用户输入的 Markdown 原文',
-        ],
-        output:
-          '请严格输出 JSON，结构必须符合本 stage 的 schema（由系统注入）。',
-      }),
       PAGES: base({
         stage: JobStage.PAGES,
-        role: '你是一名课件脚本工程师，擅长把分镜与旁白转为可渲染页面数据。',
-        goal: '根据 <storyboard_json> 与 <narration_json> 生成 PAGES 页面结构数据。',
-        inputs: [
-          '<storyboard_json> 上游 STORYBOARD 阶段 JSON',
-          '<narration_json> 上游 NARRATION 阶段 JSON',
-        ],
-        output:
-          '请严格输出 JSON，结构必须符合本 stage 的 schema（由系统注入）。',
-      }),
-      TTS: base({
-        stage: JobStage.TTS,
-        role: '你是一名 TTS 文本标准化助手。',
-        goal: '根据 <narration_json> 生成 TTS 输入（若系统实际不调用 LLM，则该 prompt 仅用于占位/后续扩展）。',
-        inputs: ['<narration_json> 上游 NARRATION 阶段 JSON'],
-        output:
-          '请严格输出 JSON，结构必须符合本 stage 的 schema（由系统注入）。',
-      }),
-      RENDER: base({
-        stage: JobStage.RENDER,
-        role: '你是一名渲染参数助手。',
-        goal: '根据 <pages_json> 生成渲染阶段需要的参数（若系统不调用 LLM，则该 prompt 仅用于占位/后续扩展）。',
-        inputs: ['<pages_json> 上游 PAGES 阶段 JSON'],
-        output:
-          '请严格输出 JSON，结构必须符合本 stage 的 schema（由系统注入）。',
-      }),
-      MERGE: base({
-        stage: JobStage.MERGE,
-        role: '你是一名视频合成参数助手。',
-        goal: '根据 <render_outputs> 生成合并阶段需要的参数（若系统不调用 LLM，则该 prompt 仅用于占位/后续扩展）。',
-        inputs: ['<render_outputs> 上游 RENDER 产物/信息'],
+        role: '你是一名课件脚本工程师，擅长把分镜转为可渲染页面数据。',
+        goal: '根据 <storyboard_json> 生成 PAGES 页面结构数据。',
+        inputs: ['<storyboard_json> 上游 STORYBOARD 阶段 JSON'],
         output:
           '请严格输出 JSON，结构必须符合本 stage 的 schema（由系统注入）。',
       }),
       DONE: base({
         stage: JobStage.DONE,
-        role: '你是一名执行总结助手。',
-        goal: '输出一个简短的 DONE 标记对象。',
-        inputs: ['<job_id> 当前任务 ID'],
+        role: '你是一名工作流完成助手。',
+        goal: '根据 <job_id> 完成工作流。',
+        inputs: ['<job_id> 工作流ID'],
         output:
           '请严格输出 JSON，结构必须符合本 stage 的 schema（由系统注入）。',
       }),
@@ -427,11 +385,7 @@ export class PromptopsService {
       [JobStage.PLAN]: ['<markdown>'],
       [JobStage.OUTLINE]: ['<markdown>', '<plan_json>'],
       [JobStage.STORYBOARD]: ['<outline_json>'],
-      [JobStage.NARRATION]: ['<storyboard_json>', '<markdown>'],
-      [JobStage.PAGES]: ['<storyboard_json>', '<narration_json>'],
-      [JobStage.TTS]: ['<narration_json>'],
-      [JobStage.RENDER]: ['<pages_json>'],
-      [JobStage.MERGE]: ['<render_outputs>'],
+      [JobStage.PAGES]: ['<storyboard_json>'],
       [JobStage.DONE]: ['<job_id>'],
     };
 
@@ -465,13 +419,13 @@ export class PromptopsService {
 
       // 检查模型是否在支持列表中
       const supportedModels = [
-        'google/gemini-3.0-flash',
+        'z-ai/glm-4.6',
         'anthropic/claude-3.5-sonnet',
         'openai/gpt-4o',
         'openai/gpt-4o-mini',
       ];
 
-      if (config.model && !supportedModels.includes(config.model)) {
+      if (config.model && !supportedModels.includes(config.model as string)) {
         errors.push(
           `Model ${config.model} is not in the supported list: ${supportedModels.join(', ')}`,
         );
@@ -487,18 +441,18 @@ export class PromptopsService {
   /**
    * 获取 Step 配置的完整性报告
    */
-  getStepConfigReport(stage: JobStage): {
+  async getStepConfigReport(stage: JobStage): Promise<{
     stage: JobStage;
     hasActiveConfig: boolean;
     configValid: boolean;
     errors: string[];
     recommendations: string[];
-  } {
+  }> {
     const errors: string[] = [];
     const recommendations: string[] = [];
 
     // 检查是否有活跃配置
-    const activeConfig = this.getActiveConfig(stage);
+    const activeConfig = await this.getActiveConfig(stage);
     const hasActiveConfig = !!activeConfig;
 
     if (!hasActiveConfig) {
@@ -539,7 +493,7 @@ export class PromptopsService {
   /**
    * 批量验证所有阶段的配置
    */
-  validateAllStageConfigs(): {
+  async validateAllStageConfigs(): Promise<{
     total: number;
     valid: number;
     invalid: number;
@@ -550,20 +504,18 @@ export class PromptopsService {
       errors: string[];
       recommendations: string[];
     }>;
-  } {
+  }> {
     const stages: JobStage[] = [
       JobStage.PLAN,
       JobStage.OUTLINE,
       JobStage.STORYBOARD,
-      JobStage.NARRATION,
       JobStage.PAGES,
-      JobStage.TTS,
-      JobStage.RENDER,
-      JobStage.MERGE,
       JobStage.DONE,
     ];
 
-    const reports = stages.map((stage) => this.getStepConfigReport(stage));
+    const reports = await Promise.all(
+      stages.map((stage) => this.getStepConfigReport(stage)),
+    );
 
     const valid = reports.filter((report) => report.configValid).length;
     const invalid = reports.length - valid;

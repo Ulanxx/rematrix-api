@@ -1,7 +1,7 @@
 # 实现任务清单
 
 ## 1. 后端：补齐协作 API（最小可用）
-- [x] 1.1 扩展 `POST /jobs`：支持接收课程配置字段（targetDurationSec/style/language），并写入 `job.config`
+- [x] 1.1 扩展 `POST /jobs`：支持接收课程配置字段（style/language），并写入 `job.config`
 - [x] 1.2 增加 `POST /jobs/:id/reject`：向 Temporal workflow 发送 reject signal，并返回最新 job/approval（或超时返回 timeout 标记）
 - [x] 1.3 扩展 Temporal workflow：支持在 PLAN/NARRATION/PAGES 三处等待确认（approve/reject）
 - [x] 1.4 扩展 activities：当进入确认点时确保 `job.status=WAITING_APPROVAL`，并写入/更新 `approval(jobId, stage)`

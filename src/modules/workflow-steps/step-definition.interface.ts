@@ -4,7 +4,7 @@ import { z } from 'zod';
 /**
  * Step 类型定义
  */
-export type StepType = 'AI_GENERATION' | 'PROCESSING' | 'MERGE';
+export type StepType = 'AI_GENERATION' | 'PROCESSING';
 
 /**
  * 重试策略配置
@@ -78,6 +78,13 @@ export interface StepDefinition {
 
   // 自定义执行逻辑（可选，用于非 AI 生成的步骤）
   customExecute?(input: any, context: ExecutionContext): Promise<any>;
+
+  // 自定义输入准备逻辑（可选，用于自定义输入数据处理）
+  customPrepareInput?(
+    jobId: string,
+    context: ExecutionContext,
+    markdown?: string,
+  ): Promise<any>;
 }
 
 /**
@@ -86,8 +93,15 @@ export interface StepDefinition {
 export interface ExecutionContext {
   jobId: string;
   apiKey: string;
-  prisma: any;
+  prisma: {
+    artifact: {
+      findFirst: (args: any) => Promise<{ content: unknown } | null>;
+      findMany: (args: any) => Promise<any[]>;
+    };
+  };
   promptopsService: any;
+  // 前面步骤的 AI response 内容
+  previousStepsContext?: Record<string, unknown>;
 }
 
 /**
@@ -120,18 +134,8 @@ export interface RegisteredStep {
  * Step 定义验证 Schema
  */
 export const stepDefinitionSchema = z.object({
-  stage: z.enum([
-    'PLAN',
-    'OUTLINE',
-    'STORYBOARD',
-    'NARRATION',
-    'PAGES',
-    'TTS',
-    'RENDER',
-    'MERGE',
-    'DONE',
-  ]),
-  type: z.enum(['AI_GENERATION', 'PROCESSING', 'MERGE']),
+  stage: z.enum(['PLAN', 'OUTLINE', 'STORYBOARD', 'PAGES', 'DONE']),
+  type: z.enum(['AI_GENERATION', 'PROCESSING']),
   name: z.string().min(1),
   description: z.string().min(1),
   aiConfig: z
@@ -140,23 +144,13 @@ export const stepDefinitionSchema = z.object({
       temperature: z.number().min(0).max(2).optional(),
       prompt: z.string().min(1),
       tools: z.record(z.string(), z.unknown()).optional(),
-      schema: z.record(z.string(), z.unknown()).optional(),
+      schema: z.any().optional(),
       meta: z.record(z.string(), z.unknown()).optional(),
     })
     .optional(),
   input: z.object({
     sources: z.array(
-      z.enum([
-        'PLAN',
-        'OUTLINE',
-        'STORYBOARD',
-        'NARRATION',
-        'PAGES',
-        'TTS',
-        'RENDER',
-        'MERGE',
-        'DONE',
-      ]),
+      z.enum(['PLAN', 'OUTLINE', 'STORYBOARD', 'PAGES', 'DONE']),
     ),
     schema: z.any(),
     description: z.string().optional(),
@@ -226,17 +220,7 @@ export function validateStepDefinition(
   }
 
   // 验证输入依赖的顺序
-  const stageOrder = [
-    'PLAN',
-    'OUTLINE',
-    'STORYBOARD',
-    'NARRATION',
-    'PAGES',
-    'TTS',
-    'RENDER',
-    'MERGE',
-    'DONE',
-  ];
+  const stageOrder = ['PLAN', 'OUTLINE', 'STORYBOARD', 'PAGES', 'DONE'];
   const currentStageIndex = stageOrder.indexOf(definition.stage);
 
   for (const sourceStage of definition.input.sources) {

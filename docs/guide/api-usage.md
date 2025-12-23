@@ -84,7 +84,6 @@ async function apiRequest(url: string, options: RequestInit = {}) {
 interface CreateJobRequest {
   config: {
     markdown: string;
-    targetDurationSec?: number;
     voiceConfig?: {
       voiceId: string;
       speed: number;
@@ -99,7 +98,6 @@ async function createJob(markdown: string): Promise<{ jobId: string }> {
       config: {
         markdown: markdown.trim(),
         // 可选参数
-        targetDurationSec: 300, // 5分钟
         voiceConfig: {
           voiceId: 'zh-CN-XiaoxiaoNeural',
           speed: 1.0

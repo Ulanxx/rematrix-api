@@ -12,7 +12,7 @@ describe('Plan Step', () => {
 
   it('should have correct AI configuration', () => {
     expect(planStep.aiConfig).toBeDefined();
-    expect(planStep.aiConfig?.model).toBe('google/gemini-3.0-flash');
+    expect(planStep.aiConfig?.model).toBe('z-ai/glm-4.6');
     expect(planStep.aiConfig?.temperature).toBe(0.7);
     expect(planStep.aiConfig?.prompt).toContain('根据 <markdown> 生成');
     expect(planStep.aiConfig?.prompt).toContain('<markdown>');

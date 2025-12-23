@@ -11,7 +11,7 @@
 - **AND** 后端创建新的 Job 实例并返回 `jobId`
 
 #### Scenario: 创建任务时携带课程配置
-- **WHEN** 用户在创建 Job 时指定 `targetDurationSec`、`style`、`language`
+- **WHEN** 用户在创建 Job 时指定 `style`、`language`
 - **THEN** 后端 SHALL 将这些字段保存到 `job.config`
 
 ### Requirement: 启动 Job 执行
